@@ -11,7 +11,7 @@ The project is already built! Just run:
 Or directly:
 
 ```bash
-./target/release/karabiner-switch-key
+./target/release/karabiner-rcmd-binder
 ```
 
 ## First Time Setup
@@ -115,7 +115,7 @@ Now `rcmd+g` will focus existing GitHub tab **in Chrome specifically** or open n
 - Open Karabiner-Elements preferences
 - Go to "Complex Modifications" tab
 - Click "Add rule"
-- You should see rules starting with `[switchkey]`
+- You should see rules starting with `[rcmdb]`
 - Enable them if needed
 
 **Want to rebuild?**
@@ -128,7 +128,7 @@ cargo build --release
 
 Your bindings are saved to:
 ```
-~/.config/karabiner-switch-key/config.toml
+~/.config/karabiner-rcmd-binder/config.toml
 ```
 
 You can edit this file directly if you prefer!

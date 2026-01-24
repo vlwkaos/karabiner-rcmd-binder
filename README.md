@@ -1,4 +1,4 @@
-# karabiner-switch-key
+# karabiner-rcmd-binder
 
 TUI for easily configuring Karabiner-Elements right_command key bindings with support for app launching, URL focusing, and action cycling.
 
@@ -27,7 +27,7 @@ source ~/.cargo/env
 ### 2. Build and Run
 
 ```bash
-cd karabiner-switch-key
+cd karabiner-rcmd-binder
 cargo run --release
 ```
 
@@ -36,7 +36,7 @@ Or install globally:
 ```bash
 cargo install --path .
 # Then run from anywhere:
-karabiner-switch-key
+karabiner-rcmd-binder
 ```
 
 ## Usage
@@ -72,7 +72,7 @@ karabiner-switch-key
 
 ### Configuration
 
-Your configuration is stored in `~/.config/karabiner-switch-key/config.toml`:
+Your configuration is stored in `~/.config/karabiner-rcmd-binder/config.toml`:
 
 ```toml
 [settings]
@@ -106,10 +106,10 @@ browser = "chrome"
 1. **Edit bindings** in the TUI
 2. **Press `s`** to save
 3. The app:
-   - Saves your config to `~/.config/karabiner-switch-key/config.toml`
+   - Saves your config to `~/.config/karabiner-rcmd-binder/config.toml`
    - Creates a backup of `karabiner.json` (timestamped, keeps last 3)
-   - Generates Karabiner rules with `[switchkey]` prefix
-   - Installs helper scripts to `~/.config/karabiner-switch-key/scripts/`
+   - Generates Karabiner rules with `[rcmdb]` prefix
+   - Installs helper scripts to `~/.config/karabiner-rcmd-binder/scripts/`
    - Updates `~/.config/karabiner/karabiner.json`
 4. **Karabiner automatically reloads** the config
 5. **Use your bindings**: `rcmd+<key>` triggers the action(s)
@@ -153,10 +153,10 @@ Now pressing `rcmd+w` cycles through Gmail (Chrome) → GitHub (Firefox) → Lin
 
 ## Files & Locations
 
-- **Config**: `~/.config/karabiner-switch-key/config.toml`
-- **Scripts**: `~/.config/karabiner-switch-key/scripts/`
+- **Config**: `~/.config/karabiner-rcmd-binder/config.toml`
+- **Scripts**: `~/.config/karabiner-rcmd-binder/scripts/`
 - **Karabiner**: `~/.config/karabiner/karabiner.json`
-- **Backups**: `~/.config/karabiner/karabiner.json.switchkey-backup-YYYYMMDD-HHMMSS`
+- **Backups**: `~/.config/karabiner/karabiner.json.rcmdb-backup-YYYYMMDD-HHMMSS`
 
 ## Requirements
 
@@ -180,7 +180,7 @@ Now pressing `rcmd+w` cycles through Gmail (Chrome) → GitHub (Firefox) → Lin
 **Keys not working?**
 - Check Karabiner-Elements is running
 - Open Karabiner-Elements preferences → Complex Modifications
-- Verify `[switchkey]` rules are present
+- Verify `[rcmdb]` rules are present
 
 **Browser tab not focusing?**
 - Firefox has limited tab detection, works best with exact URL matches

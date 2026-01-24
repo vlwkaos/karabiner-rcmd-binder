@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use super::model::Config;
 
-const APP_NAME: &str = "karabiner-switch-key";
+const APP_NAME: &str = "karabiner-rcmd-binder";
 const CONFIG_FILE: &str = "config.toml";
 
 pub fn config_dir() -> Result<PathBuf> {

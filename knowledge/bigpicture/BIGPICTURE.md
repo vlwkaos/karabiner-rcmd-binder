@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**karabiner-switch-key** - TUI for managing Karabiner-Elements right_command key bindings with app launching, URL tab focusing, and action cycling.
+**karabiner-rcmd-binder** - TUI for managing Karabiner-Elements right_command key bindings with app launching, URL tab focusing, and action cycling.
 
 ## Core Data Flow
 
@@ -16,9 +16,9 @@ User (TUI) --> config.toml --> Karabiner JSON --> macOS Shortcuts
 
 ## Key Integration Points
 
-1. **Config Layer**: `~/.config/karabiner-switch-key/config.toml` (simple TOML) -> generates complex Karabiner JSON
-2. **Karabiner Integration**: Namespaced rules `[switchkey]`, backup system (3 rotating), variable-based cycling
-3. **Helper Scripts**: Embedded in binary via `include_str!`, installed to `~/.config/karabiner-switch-key/scripts/`
+1. **Config Layer**: `~/.config/karabiner-rcmd-binder/config.toml` (simple TOML) -> generates complex Karabiner JSON
+2. **Karabiner Integration**: Namespaced rules `[rcmdb]`, backup system (3 rotating), variable-based cycling
+3. **Helper Scripts**: Embedded in binary via `include_str!`, installed to `~/.config/karabiner-rcmd-binder/scripts/`
 4. **Mode System**: INPUT (text entry) vs NAV (commands) - affects title, border, status bar, key handlers
 
 ## Critical Dependencies (Change Impact)

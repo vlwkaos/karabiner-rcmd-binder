@@ -1,4 +1,4 @@
-# karabiner-switch-key
+# karabiner-rcmd-binder
 
 TUI for Karabiner-Elements right_command key bindings.
 

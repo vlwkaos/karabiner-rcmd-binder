@@ -1,10 +1,16 @@
 [package]
-name = "karabiner-switch-key"
-version = "0.1.0"
+name = "karabiner-rcmd-binder"
+version = "0.2.1"
 edition = "2021"
 description = "TUI for configuring Karabiner-Elements right_command key bindings"
 license = "MIT"
-repository = "https://github.com/user/karabiner-switch-key"
+authors = ["vlwkaos <vlwkaos@users.noreply.github.com>"]
+homepage = "https://github.com/vlwkaos/karabiner-rcmd-binder"
+repository = "https://github.com/vlwkaos/karabiner-rcmd-binder"
+
+[[bin]]
+name = "rcmdb"
+path = "src/main.rs"
 
 [dependencies]
 ratatui = "0.30"

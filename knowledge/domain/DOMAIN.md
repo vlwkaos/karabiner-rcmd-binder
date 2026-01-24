@@ -59,7 +59,7 @@ Action(Url) 1--1 UrlMatchType
 
 ### Action Cycling
 When binding has multiple actions:
-- Karabiner variable `switchkey_<key>_cycle` tracks position
+- Karabiner variable `rcmdb_<key>_cycle` tracks position
 - Each press increments modulo action count
 - Wraps around: 0 -> 1 -> 2 -> 0
 
@@ -74,7 +74,7 @@ When binding has multiple actions:
 | Term | Meaning |
 |------|---------|
 | rcmd | right_command modifier key |
-| switchkey | Project namespace prefix in Karabiner rules |
+| rcmdb | Project namespace prefix in Karabiner rules |
 | cycling | Rotating through multiple actions on same key |
 | tab focus | Finding and activating existing browser tab |
 

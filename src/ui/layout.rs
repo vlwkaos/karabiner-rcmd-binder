@@ -37,7 +37,7 @@ fn draw_tabs(frame: &mut Frame, app: &App, area: Rect) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(" karabiner-switch-key "),
+                .title(" karabiner-rcmd-binder (rcmdb) "),
         )
         .select(selected)
         .style(Style::default().fg(Color::White))

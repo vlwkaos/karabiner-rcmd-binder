@@ -1,13 +1,13 @@
 #!/bin/bash
-# Quick run script for karabiner-switch-key
+# Quick run script for karabiner-rcmd-binder
 
 cd "$(dirname "$0")"
 
 # Check if binary exists
-if [ ! -f "target/release/karabiner-switch-key" ]; then
-    echo "Building karabiner-switch-key..."
+if [ ! -f "target/release/rcmdb" ]; then
+    echo "Building rcmdb..."
     cargo build --release
 fi
 
 # Run the TUI
-./target/release/karabiner-switch-key
+./target/release/rcmdb
