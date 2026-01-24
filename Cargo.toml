@@ -1,0 +1,24 @@
+[package]
+name = "karabiner-rcmd-binder"
+version = "0.2.1"
+edition = "2021"
+description = "TUI for configuring Karabiner-Elements right_command key bindings"
+license = "MIT"
+authors = ["vlwkaos <vlwkaos@users.noreply.github.com>"]
+homepage = "https://github.com/vlwkaos/karabiner-rcmd-binder"
+repository = "https://github.com/vlwkaos/karabiner-rcmd-binder"
+
+[[bin]]
+name = "rcmdb"
+path = "src/main.rs"
+
+[dependencies]
+ratatui = "0.30"
+crossterm = "0.28"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+dirs = "5"
+anyhow = "1"
+glob = "0.3"
+chrono = "0.4"

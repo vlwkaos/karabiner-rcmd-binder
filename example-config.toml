@@ -1,0 +1,110 @@
+# Example karabiner-switch-key configuration
+# Copy this to ~/.config/karabiner-switch-key/config.toml to get started
+
+[settings]
+default_browser = "firefox"  # Options: firefox, chrome, safari, arc, edge
+
+# Example 1: Single app launcher
+[[bindings]]
+key = "s"
+description = "Slack"
+
+[[bindings.actions]]
+type = "app"
+target = "Slack"
+
+# Example 2: Cycling through terminal apps
+[[bindings]]
+key = "t"
+description = "Terminal apps"
+
+[[bindings.actions]]
+type = "app"
+target = "Terminal"
+
+[[bindings.actions]]
+type = "app"
+target = "iTerm"
+
+[[bindings.actions]]
+type = "app"
+target = "Warp"
+
+# Example 3: URL with domain matching (focuses existing tab)
+[[bindings]]
+key = "g"
+description = "GitHub"
+
+[[bindings.actions]]
+type = "url"
+target = "https://github.com/notifications"
+match = "domain"  # Options: exact, domain, path, glob
+browser = "chrome"  # Override default browser (optional)
+
+# Example 4: Multiple URLs cycling
+[[bindings]]
+key = "w"
+description = "Work URLs"
+
+[[bindings.actions]]
+type = "url"
+target = "https://mail.google.com"
+match = "domain"
+
+[[bindings.actions]]
+type = "url"
+target = "https://calendar.google.com"
+match = "domain"
+
+[[bindings.actions]]
+type = "url"
+target = "https://drive.google.com"
+match = "domain"
+
+# Example 5: Shell command
+[[bindings]]
+key = "h"
+description = "Open home directory"
+
+[[bindings.actions]]
+type = "shell"
+command = "open ~"
+
+# Example 6: URL with exact match
+[[bindings]]
+key = "m"
+description = "Gmail inbox"
+
+[[bindings.actions]]
+type = "url"
+target = "https://mail.google.com/mail/u/0/#inbox"
+match = "exact"
+
+# Example 7: Mixed actions (app + URL)
+[[bindings]]
+key = "d"
+description = "Dev tools"
+
+[[bindings.actions]]
+type = "app"
+target = "Visual Studio Code"
+
+[[bindings.actions]]
+type = "url"
+target = "https://github.com"
+match = "domain"
+
+[[bindings.actions]]
+type = "app"
+target = "Terminal"
+
+# Notes:
+# - All bindings use right_command (rcmd) modifier automatically
+# - Press rcmd+<key> to trigger the action(s)
+# - Multiple actions = cycling behavior (press again to cycle)
+# - Single action = direct trigger
+# - URL match types:
+#   - exact: Full URL must match exactly
+#   - domain: Any page on the same domain
+#   - path: Domain + path (ignores query params)
+#   - glob: Wildcard matching with *
