@@ -31,7 +31,8 @@ echo "📦 Creating distribution package..."
 
 # Step 5: Git commit and tag
 echo "📌 Creating git tag..."
-git add Cargo.toml Cargo.lock
+git add Cargo.toml
+git add Cargo.lock 2>/dev/null || true
 git commit -m "chore: bump version to v$VERSION" || echo "No changes to commit"
 git tag -s "v$VERSION" -m "Release v$VERSION"
 git push origin main || echo "Already pushed"
