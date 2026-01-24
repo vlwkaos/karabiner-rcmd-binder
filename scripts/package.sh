@@ -1,7 +1,13 @@
 #!/bin/bash
 set -e
 
-VERSION="0.2.1"
+# Get version from Cargo.toml if not provided
+if [ -z "$1" ]; then
+    VERSION=$(grep '^version =' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+else
+    VERSION="$1"
+fi
+
 PACKAGE_NAME="rcmdb-${VERSION}-macos-arm64"
 BUILD_DIR="dist/$PACKAGE_NAME"
 

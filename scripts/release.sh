@@ -27,7 +27,7 @@ echo "🔐 Signing with Apple Developer certificate..."
 
 # Step 4: Package (creates tarball + SHA256 + GPG signature)
 echo "📦 Creating distribution package..."
-./scripts/package.sh
+./scripts/package.sh "$VERSION"
 
 # Step 5: Git commit and tag
 echo "📌 Creating git tag..."
