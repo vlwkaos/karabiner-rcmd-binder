@@ -24,9 +24,15 @@ What happens when binding triggers.
 
 | Variant | Fields | Purpose |
 |---------|--------|---------|
-| `App` | `target: String` | Open/focus application |
+| `App` | `target: String, bundle_id: Option<String>` | Open/focus application via bundle ID (more reliable) |
 | `Url` | `target, match_type, browser` | Open URL with tab focus |
 | `Shell` | `command: String` | Run shell command |
+
+### DiscoveredApp
+App metadata from system scanning.
+- `name: String` - Display name (e.g., "KakaoWork")
+- `bundle_id: String` - macOS bundle identifier (e.g., "com.kakaoenterprise.macos.kakaowork")
+- `last_component: String` - Last part of bundle ID for disambiguation (e.g., "kakaowork")
 
 ### Browser (enum)
 Supported browsers: Firefox, Chrome, Safari, Arc, Edge
@@ -85,3 +91,7 @@ When binding has multiple actions:
 3. Per-action browser overrides Settings.default_browser
 4. Browser field `None` = use default
 5. Backups rotate: keep newest 3
+6. Bundle IDs preferred over app names for launching (more reliable)
+7. Bundle IDs auto-resolved on save if missing
+8. Key validation: must be valid Karabiner keycode or use autocomplete
+9. App discovery limited to 150 apps for performance

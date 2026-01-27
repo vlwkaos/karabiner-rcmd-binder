@@ -188,6 +188,8 @@ pub struct Config {
     pub settings: Settings,
     #[serde(default)]
     pub bindings: Vec<Binding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cached_apps: Vec<crate::app_discovery::DiscoveredApp>,
 }
 
 impl Default for Config {
@@ -195,6 +197,7 @@ impl Default for Config {
         Self {
             settings: Settings::default(),
             bindings: Vec::new(),
+            cached_apps: Vec::new(),
         }
     }
 }

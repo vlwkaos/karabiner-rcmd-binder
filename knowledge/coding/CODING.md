@@ -4,19 +4,30 @@ Project-specific patterns, standards, and conventions.
 
 ## Patterns
 
-### Mode Detection
-Field-based INPUT vs NAV mode determination.
+### Early Returns Pattern
+Use early returns to reduce nesting and improve readability.
 
 ```rust
-// src/app.rs
-pub fn is_input_mode(&self) -> bool {
-    match &self.binding_editor {
-        Some(editor) => match &editor.action_editor {
-            Some(ae) => ae.field == ActionEditorField::Target,
-            None => matches!(editor.field, EditorField::Key | EditorField::Description),
-        },
-        None => false,
+// Prefer this:
+if !output.status.success() {
+    return Err(anyhow::anyhow!("Failed"));
+}
+let bundle_id = parse(output);
+if bundle_id.is_empty() {
+    return Err(anyhow::anyhow!("Empty"));
+}
+Ok(bundle_id)
+
+// Instead of this:
+if output.status.success() {
+    let bundle_id = parse(output);
+    if !bundle_id.is_empty() {
+        Ok(bundle_id)
+    } else {
+        Err(anyhow::anyhow!("Empty"))
     }
+} else {
+    Err(anyhow::anyhow!("Failed"))
 }
 ```
 
@@ -110,10 +121,24 @@ if let Ok(result) = rx.try_recv() {
 ## Performance
 
 ### App Discovery
-- osascript: ~450ms (blocking)
-- read_dir: ~32ms (fast)
+- osascript: ~450ms for running apps (background thread)
+- plutil: varies by app count (optimized: limit 150 apps)
+- Skip /System/Applications (slow, rarely needed)
 - Solution: background thread + loading indicator
+- Total time: ~0.5-1s (was 2-3s)
 
 ### UI Rendering
 - 50ms poll = 20 FPS max
 - No expensive operations in render path
+
+## Code Quality
+
+### Dead Code Elimination
+- Remove unused functions immediately
+- Use compiler warnings as guide
+- Zero warnings policy for releases
+
+### Simplification
+- Prefer early returns over nested if-else
+- Use guard clauses for validation
+- Reduce nesting depth (target: 2-3 levels max)

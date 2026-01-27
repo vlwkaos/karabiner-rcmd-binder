@@ -496,7 +496,8 @@ impl App {
     }
 
     pub fn finish_app_discovery(&mut self, apps: Vec<DiscoveredApp>) {
-        self.discovered_apps = apps;
+        self.discovered_apps = apps.clone();
+        self.config.cached_apps = apps;
         self.apps_loading = false;
     }
 

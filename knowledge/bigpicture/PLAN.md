@@ -2,12 +2,17 @@
 
 ## Version History
 
-### v0.2.1 - Dynamic App Discovery (Current)
+### v0.2.1 - Bundle ID Support & Code Quality (Current)
 - [x] Replace static app list with dynamic discovery
-- [x] Scan running apps via osascript
-- [x] Scan installed apps from /Applications, /System/Applications, ~/Applications
+- [x] Scan running apps via osascript  
+- [x] Scan installed apps from /Applications, ~/Applications (optimized)
 - [x] Background thread with loading indicator
-- [x] Deduplication (case-insensitive)
+- [x] Bundle ID metadata for reliable app launching
+- [x] Auto-validation and resolution of bundle IDs on save
+- [x] Key validation (prevent invalid multi-char keys)
+- [x] Performance optimization (150 app limit, 2-3x faster)
+- [x] Code cleanup (removed 117 lines, zero warnings)
+- [x] Script security audit (removed hardcoded credentials)
 
 ### v0.2.0 - Mode Indicators
 - [x] Visual distinction between INPUT and NAV modes

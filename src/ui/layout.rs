@@ -38,11 +38,10 @@ fn draw_tabs(frame: &mut Frame, app: &App, area: Rect) {
     };
 
     let tabs = Tabs::new(titles)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" karabiner-rcmd-binder (rcmdb) "),
-        )
+        .block(Block::default().borders(Borders::ALL).title(format!(
+            " karabiner-rcmd-binder v{} ",
+            env!("CARGO_PKG_VERSION")
+        )))
         .select(selected)
         .style(Style::default().fg(Color::White))
         .highlight_style(

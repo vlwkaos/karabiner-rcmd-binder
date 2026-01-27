@@ -39,6 +39,11 @@ fn main() -> Result<()> {
     // Create channel for app discovery
     let (tx, rx) = mpsc::channel();
 
+    // Load cached apps immediately and start background discovery
+    app.discovered_apps = app.config.cached_apps.clone();
+    app.start_app_discovery();
+    spawn_app_discovery(tx.clone());
+
     // Run the main loop
     let res = run_app(&mut terminal, &mut app, rx, tx);
 
@@ -126,7 +131,7 @@ fn handle_normal_mode(
 fn handle_bindings_normal(
     app: &mut App,
     key: KeyCode,
-    tx: &Sender<Vec<DiscoveredApp>>,
+    _tx: &Sender<Vec<DiscoveredApp>>,
 ) -> Result<()> {
     match key {
         KeyCode::Char('j') | KeyCode::Down => {
@@ -137,13 +142,9 @@ fn handle_bindings_normal(
         }
         KeyCode::Char('a') => {
             app.start_new_binding();
-            app.start_app_discovery();
-            spawn_app_discovery(tx.clone());
         }
         KeyCode::Char('e') | KeyCode::Enter => {
             app.start_edit_binding();
-            app.start_app_discovery();
-            spawn_app_discovery(tx.clone());
         }
         KeyCode::Char('d') => {
             app.delete_binding();

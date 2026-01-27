@@ -1,7 +1,8 @@
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::process::Command;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiscoveredApp {
     pub name: String,           // Display name (e.g., "KakaoWork")
     pub bundle_id: String,      // Full bundle ID (e.g., "com.kakaoenterprise.macos.kakaowork")

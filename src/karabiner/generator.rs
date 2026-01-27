@@ -256,7 +256,7 @@ pub fn apply_to_karabiner(config: &Config, scripts_dir: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{Binding, Settings};
+    use crate::config::Binding;
 
     #[test]
     fn test_single_action_rule() {
@@ -265,6 +265,7 @@ mod tests {
             description: "Terminal".to_string(),
             actions: vec![Action::App {
                 target: "Terminal".to_string(),
+                bundle_id: Some("com.apple.Terminal".to_string()),
             }],
         };
 
@@ -281,9 +282,11 @@ mod tests {
             actions: vec![
                 Action::App {
                     target: "Terminal".to_string(),
+                    bundle_id: Some("com.apple.Terminal".to_string()),
                 },
                 Action::App {
                     target: "iTerm".to_string(),
+                    bundle_id: Some("com.googlecode.iterm2".to_string()),
                 },
             ],
         };

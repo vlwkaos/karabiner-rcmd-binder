@@ -36,9 +36,10 @@ User (TUI) --> config.toml --> Karabiner JSON --> macOS Shortcuts
 ```
 src/
 ├── main.rs           # Event loop, key dispatch, mpsc channel for discovery
-├── app.rs            # App state, mode detection, editor structs
-├── app_discovery.rs  # Dynamic app scanning (running + installed)
+├── app.rs            # App state, editor structs, autocomplete
+├── app_discovery.rs  # Dynamic app scanning with bundle IDs
 ├── keycodes.rs       # Valid Karabiner key codes
+├── validation.rs     # Bundle ID resolution and validation
 ├── config/
 │   ├── model.rs      # Domain: Browser, Action, Binding, Config
 │   └── persistence.rs # TOML load/save
