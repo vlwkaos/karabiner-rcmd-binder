@@ -2,6 +2,8 @@
 
 TUI for easily configuring Karabiner-Elements right_command key bindings with support for app launching, URL focusing, and action cycling.
 
+<img width="1644" height="1756" alt="image" src="https://github.com/user-attachments/assets/8f0f46c7-3204-44d0-8643-187194b81162" />
+
 ## Features
 
 - **Simple TUI**: Easy-to-navigate terminal interface
