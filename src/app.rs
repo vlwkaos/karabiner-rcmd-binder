@@ -492,7 +492,6 @@ impl App {
 
     pub fn start_app_discovery(&mut self) {
         self.apps_loading = true;
-        self.discovered_apps.clear();
     }
 
     pub fn finish_app_discovery(&mut self, apps: Vec<DiscoveredApp>) {
