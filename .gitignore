@@ -10,3 +10,4 @@ dist/
 *secret*
 *credential*
 GPG-PRIVATE-KEY-BACKUP.asc
+GPG-PUBLIC-KEY.asc
