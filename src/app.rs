@@ -595,6 +595,9 @@ impl App {
         self.discovered_apps = merged.clone();
         self.config.cached_apps = merged;
         self.apps_loading = false;
+
+        // Regenerate dynamic bindings with updated app list
+        self.generate_dynamic_bindings();
     }
 
     pub fn generate_dynamic_bindings(&mut self) {

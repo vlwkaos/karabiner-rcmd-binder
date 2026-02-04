@@ -41,6 +41,7 @@ fn main() -> Result<()> {
 
     // Load cached apps immediately and start background discovery
     app.discovered_apps = app.config.cached_apps.clone();
+    app.generate_dynamic_bindings();
     app.start_app_discovery();
     spawn_app_discovery(tx.clone());
 
