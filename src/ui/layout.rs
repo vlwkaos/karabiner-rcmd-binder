@@ -77,33 +77,59 @@ fn draw_status_bar(frame: &mut Frame, app: &App, area: Rect) {
     } else {
         let help = match (&app.input_mode, &app.binding_editor) {
             (InputMode::Normal, None) => match app.tab {
-                Tab::Bindings => "(a)dd (e)dit (d)elete (Tab)switch (q)uit (s)ave to karabiner",
-                Tab::Settings => "(Tab)switch (q)uit (s)ave to karabiner",
+                Tab::Bindings => "(a)dd (e)dit (d)elete (j/k)nav (Tab)switch (s)ave (q)uit",
+                Tab::Settings => "(←→)change (Tab)switch (s)ave (q)uit",
             },
             (InputMode::Editing, Some(editor)) => {
                 if let Some(action_editor) = &editor.action_editor {
-                    if action_editor.field == crate::app::ActionEditorField::Target {
-                        "[INPUT] Type freely | (Tab)next (Esc)cancel (Enter)select"
+                    // Action Editor
+                    if action_editor.edit_mode {
+                        // EDIT mode: typing in Target field
+                        if action_editor.action_type == crate::app::ActionType::App {
+                            "[EDIT] Type app name | (↑↓)autocomplete (Enter)finish (Tab)next (Esc)exit"
+                        } else {
+                            "[EDIT] Type target | (Enter)finish (Tab)next (Esc)exit"
+                        }
                     } else {
-                        "[NAV] (s)SAVE | (←→)change (Tab)next (Esc)cancel"
+                        // NAV mode
+                        match action_editor.field {
+                            crate::app::ActionEditorField::Target => {
+                                "[NAV] (Enter)edit (s)ave (Tab)next (Esc)cancel"
+                            }
+                            _ => {
+                                "[NAV] (←→)change (s)ave (Tab)next (Esc)cancel"
+                            }
+                        }
                     }
                 } else {
-                    match editor.field {
-                        crate::app::EditorField::Key => {
-                            "[INPUT] Type freely | (Tab)next (Esc)cancel (↑↓Enter)autocomplete"
+                    // Binding Editor
+                    if editor.edit_mode {
+                        // EDIT mode: typing in Key/Description
+                        match editor.field {
+                            crate::app::EditorField::Key => {
+                                "[EDIT] Type key | (↑↓)autocomplete (Enter)finish (Tab)next (Esc)exit"
+                            }
+                            crate::app::EditorField::Description => {
+                                "[EDIT] Type description | (Enter)finish (Tab)next (Esc)exit"
+                            }
+                            _ => "[NAV]",
                         }
-                        crate::app::EditorField::Description => {
-                            "[INPUT] Type freely | (Tab)next (Esc)cancel"
-                        }
-                        crate::app::EditorField::Actions => {
-                            "[NAV] (s)SAVE | (a)dd (e)dit (d)el (k/j)move (Esc)cancel"
+                    } else {
+                        // NAV mode
+                        match editor.field {
+                            crate::app::EditorField::Key | crate::app::EditorField::Description => {
+                                "[NAV] (Enter)edit (s)ave (Tab)next (Esc)cancel"
+                            }
+                            crate::app::EditorField::Actions => {
+                                "[NAV] (a)dd (e)dit (d)elete (j/k)nav (J/K)move (s)ave (Tab)next (Esc)cancel"
+                            }
                         }
                     }
                 }
             }
             _ => "",
         };
-        (help.to_string(), Style::default().fg(Color::DarkGray))
+        (help.to_string(), Style::default().fg(Color::Gray))
     };
 
     let paragraph = Paragraph::new(Line::from(vec![Span::styled(msg, style)]))

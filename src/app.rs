@@ -1,5 +1,7 @@
 use crate::app_discovery::DiscoveredApp;
 use crate::config::{Action, Binding, Browser, Config, UrlMatchType};
+use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone)]
 pub struct AutocompleteSuggestion {
@@ -43,6 +45,7 @@ pub struct ActionEditor {
     pub match_type: UrlMatchType,
     pub browser: Option<Browser>,
     pub field: ActionEditorField,
+    pub edit_mode: bool, // True when actively editing Target field, false when navigating
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -87,6 +90,7 @@ impl ActionEditor {
             match_type: UrlMatchType::Domain,
             browser: None,
             field: ActionEditorField::Type,
+            edit_mode: false,
         }
     }
 
@@ -99,6 +103,7 @@ impl ActionEditor {
                 match_type: UrlMatchType::Domain,
                 browser: None,
                 field: ActionEditorField::Type,
+                edit_mode: false,
             },
             Action::Url {
                 target,
@@ -111,6 +116,7 @@ impl ActionEditor {
                 match_type: match_type.clone(),
                 browser: browser.clone(),
                 field: ActionEditorField::Type,
+                edit_mode: false,
             },
             Action::Shell { command } => Self {
                 action_type: ActionType::Shell,
@@ -119,6 +125,7 @@ impl ActionEditor {
                 match_type: UrlMatchType::Domain,
                 browser: None,
                 field: ActionEditorField::Type,
+                edit_mode: false,
             },
         }
     }
@@ -176,6 +183,7 @@ pub struct BindingEditor {
     pub field: EditorField,
     pub action_editor: Option<ActionEditor>,
     pub editing_action_index: Option<usize>,
+    pub edit_mode: bool, // True when actively editing text field (Key/Description), false when navigating
 }
 
 impl BindingEditor {
@@ -188,6 +196,7 @@ impl BindingEditor {
             field: EditorField::Key,
             action_editor: None,
             editing_action_index: None,
+            edit_mode: false,
         }
     }
 
@@ -200,6 +209,7 @@ impl BindingEditor {
             field: EditorField::Key,
             action_editor: None,
             editing_action_index: None,
+            edit_mode: false,
         }
     }
 
@@ -495,8 +505,38 @@ impl App {
     }
 
     pub fn finish_app_discovery(&mut self, apps: Vec<DiscoveredApp>) {
-        self.discovered_apps = apps.clone();
-        self.config.cached_apps = apps;
+        // Get current timestamp for cleanup logic
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+
+        const THIRTY_DAYS_SECONDS: i64 = 30 * 24 * 60 * 60;
+
+        // Build HashMap of existing cached apps by bundle_id
+        let mut cache_map: HashMap<String, DiscoveredApp> = self
+            .config
+            .cached_apps
+            .iter()
+            .map(|app| (app.bundle_id.clone(), app.clone()))
+            .collect();
+
+        // Merge newly discovered apps
+        for app in apps.iter() {
+            cache_map.insert(app.bundle_id.clone(), app.clone());
+        }
+
+        // Remove apps not seen in 30+ days
+        let mut merged: Vec<DiscoveredApp> = cache_map
+            .into_values()
+            .filter(|app| (now - app.last_seen) < THIRTY_DAYS_SECONDS)
+            .collect();
+
+        // Sort by name (case-insensitive)
+        merged.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+
+        self.discovered_apps = merged.clone();
+        self.config.cached_apps = merged;
         self.apps_loading = false;
     }
 

@@ -26,10 +26,9 @@ pub fn draw_editor(frame: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    // Determine mode based on current field
-    let is_input = matches!(editor.field, EditorField::Key | EditorField::Description);
-    let mode_label = if is_input { "INPUT" } else { "NAV" };
-    let border_color = if is_input { Color::Green } else { Color::Cyan };
+    // Determine mode based on edit_mode flag
+    let mode_label = if editor.edit_mode { "EDIT" } else { "NAV" };
+    let border_color = if editor.edit_mode { Color::Green } else { Color::Cyan };
 
     let base_title = if app.editing_binding_index.is_some() {
         "Edit Binding"
@@ -38,16 +37,9 @@ pub fn draw_editor(frame: &mut Frame, app: &App, area: Rect) {
     };
     let title = format!(" [{}] {} ", mode_label, base_title);
 
-    let bottom_hint = if is_input {
-        " (Tab)next | (Esc)cancel "
-    } else {
-        " (s)SAVE | (Esc)cancel "
-    };
-
     let block = Block::default()
         .borders(Borders::ALL)
         .title(title)
-        .title_bottom(Line::from(bottom_hint).right_aligned())
         .border_style(Style::default().fg(border_color));
 
     let inner = block.inner(popup_area);
@@ -125,7 +117,6 @@ pub fn draw_editor(frame: &mut Frame, app: &App, area: Rect) {
     let actions_block = Block::default()
         .borders(Borders::ALL)
         .title(" Actions (cycle order) ")
-        .title_bottom(Line::from(" (a)dd (e)dit (d)elete (k)up (j)down ").right_aligned())
         .border_style(actions_style);
 
     if action_items.is_empty() {
@@ -162,23 +153,15 @@ fn draw_action_editor(
     action_editor: &crate::app::ActionEditor,
     area: Rect,
 ) {
-    // Determine mode based on current field
-    let is_input = action_editor.field == ActionEditorField::Target;
-    let mode_label = if is_input { "INPUT" } else { "NAV" };
-    let border_color = if is_input { Color::Green } else { Color::Cyan };
+    // Determine mode based on edit_mode flag
+    let mode_label = if action_editor.edit_mode { "EDIT" } else { "NAV" };
+    let border_color = if action_editor.edit_mode { Color::Green } else { Color::Cyan };
 
     let title = format!(" [{}] Edit Action ", mode_label);
-
-    let bottom_hint = if is_input {
-        " (Tab)next | (Esc)cancel | (Enter)select "
-    } else {
-        " (s)SAVE | (←→)change | (Tab)next | (Esc)cancel "
-    };
 
     let block = Block::default()
         .borders(Borders::ALL)
         .title(title)
-        .title_bottom(Line::from(bottom_hint).right_aligned())
         .border_style(Style::default().fg(border_color));
 
     let inner = block.inner(area);

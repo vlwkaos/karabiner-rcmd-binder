@@ -1,21 +1,36 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiscoveredApp {
     pub name: String,           // Display name (e.g., "KakaoWork")
     pub bundle_id: String,      // Full bundle ID (e.g., "com.kakaoenterprise.macos.kakaowork")
     pub last_component: String, // Last part of bundle ID (e.g., "kakaowork")
+    #[serde(default = "default_timestamp")]
+    pub last_seen: i64,         // Unix timestamp (seconds since epoch)
+}
+
+fn default_timestamp() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
 }
 
 impl DiscoveredApp {
     fn new(name: String, bundle_id: String) -> Self {
         let last_component = extract_last_component(&bundle_id);
+        let last_seen = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
         Self {
             name,
             bundle_id,
             last_component,
+            last_seen,
         }
     }
 }

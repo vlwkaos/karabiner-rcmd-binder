@@ -175,267 +175,307 @@ fn handle_editing_mode(app: &mut App, key: KeyCode, _modifiers: KeyModifiers) ->
 
     // Check if we're editing an action
     if let Some(ref mut action_editor) = editor.action_editor {
-        match key {
-            KeyCode::Esc => {
+        // Esc: exit edit mode or cancel action editor
+        if key == KeyCode::Esc {
+            if action_editor.edit_mode {
+                action_editor.edit_mode = false;
+                app.show_autocomplete = false;
+            } else {
                 app.show_autocomplete = false;
                 editor.cancel_action_edit();
             }
-            KeyCode::Char('s') if action_editor.field != ActionEditorField::Target => {
-                // Save action with 's' (but NOT when typing in Target field)
+            return Ok(());
+        }
+
+        // Tab/Shift-Tab: always navigate fields, exit edit mode
+        if key == KeyCode::Tab {
+            app.show_autocomplete = false;
+            action_editor.edit_mode = false;
+            action_editor.next_field();
+            return Ok(());
+        }
+        if key == KeyCode::BackTab {
+            app.show_autocomplete = false;
+            action_editor.edit_mode = false;
+            action_editor.prev_field();
+            return Ok(());
+        }
+
+        // Save shortcut: only in Nav mode
+        if !action_editor.edit_mode {
+            if let KeyCode::Char('s') = key {
                 app.show_autocomplete = false;
                 editor.finish_action_edit();
+                return Ok(());
             }
-            KeyCode::Enter => {
-                // Enter selects autocomplete if shown, otherwise does nothing
-                if app.show_autocomplete && action_editor.field == ActionEditorField::Target {
-                    if let Some(suggestion) =
-                        app.autocomplete_suggestions.get(app.autocomplete_selected)
-                    {
-                        action_editor.target = suggestion.value.clone();
-                        // Store bundle ID for App actions
+        }
+
+        // Field-specific handling
+        match action_editor.field {
+            ActionEditorField::Target => {
+                if action_editor.edit_mode {
+                    // EDIT MODE: handle text input
+                    match key {
+                        KeyCode::Enter => {
+                            // Select autocomplete or finish editing
+                            if app.show_autocomplete {
+                                if let Some(suggestion) =
+                                    app.autocomplete_suggestions.get(app.autocomplete_selected)
+                                {
+                                    action_editor.target = suggestion.value.clone();
+                                    if action_editor.action_type == crate::app::ActionType::App {
+                                        action_editor.bundle_id = Some(suggestion.bundle_id.clone());
+                                    }
+                                }
+                                app.show_autocomplete = false;
+                            } else {
+                                // Finish editing
+                                action_editor.edit_mode = false;
+                                app.show_autocomplete = false;
+                            }
+                        }
+                        KeyCode::Char(c) => {
+                            action_editor.target.push(c);
+                            if action_editor.action_type == crate::app::ActionType::App {
+                                let target = action_editor.target.clone();
+                                app.update_app_autocomplete(&target);
+                            }
+                        }
+                        KeyCode::Backspace => {
+                            action_editor.target.pop();
+                            if action_editor.action_type == crate::app::ActionType::App {
+                                let target = action_editor.target.clone();
+                                app.update_app_autocomplete(&target);
+                            }
+                        }
+                        KeyCode::Down => {
+                            if app.show_autocomplete {
+                                app.next_autocomplete();
+                            }
+                        }
+                        KeyCode::Up => {
+                            if app.show_autocomplete {
+                                app.prev_autocomplete();
+                            }
+                        }
+                        _ => {}
+                    }
+                } else {
+                    // NAV MODE: Enter starts editing
+                    if key == KeyCode::Enter {
+                        action_editor.edit_mode = true;
                         if action_editor.action_type == crate::app::ActionType::App {
-                            action_editor.bundle_id = Some(suggestion.bundle_id.clone());
+                            let target = action_editor.target.clone();
+                            app.update_app_autocomplete(&target);
                         }
                     }
-                    app.show_autocomplete = false;
                 }
             }
-            KeyCode::Tab => {
-                app.show_autocomplete = false;
-                action_editor.next_field();
-            }
-            KeyCode::BackTab => {
-                app.show_autocomplete = false;
-                action_editor.prev_field();
-            }
-            KeyCode::Left => {
-                // Arrow keys work in all fields for navigation
-                match action_editor.field {
-                    ActionEditorField::Type => {
-                        action_editor.action_type = action_editor.action_type.prev();
-                    }
-                    ActionEditorField::MatchType => {
-                        let types = UrlMatchType::all();
-                        let idx = types
-                            .iter()
-                            .position(|t| t == &action_editor.match_type)
-                            .unwrap_or(0);
-                        let prev_idx = idx.checked_sub(1).unwrap_or(types.len() - 1);
-                        action_editor.match_type = types[prev_idx].clone();
-                    }
-                    ActionEditorField::Browser => {
-                        let browsers = Browser::all();
-                        match &action_editor.browser {
-                            None => {
-                                action_editor.browser = Some(browsers.last().unwrap().clone());
+            ActionEditorField::Type | ActionEditorField::MatchType | ActionEditorField::Browser => {
+                // Selector fields: always responsive to arrow keys (no edit mode needed)
+                match key {
+                    KeyCode::Left | KeyCode::Char('<') | KeyCode::Char(',') => {
+                        match action_editor.field {
+                            ActionEditorField::Type => {
+                                action_editor.action_type = action_editor.action_type.prev();
                             }
-                            Some(b) => {
-                                let idx = browsers.iter().position(|x| x == b).unwrap_or(0);
-                                if idx == 0 {
-                                    action_editor.browser = None;
-                                } else {
-                                    action_editor.browser = Some(browsers[idx - 1].clone());
+                            ActionEditorField::MatchType => {
+                                let types = UrlMatchType::all();
+                                let idx = types
+                                    .iter()
+                                    .position(|t| t == &action_editor.match_type)
+                                    .unwrap_or(0);
+                                let prev_idx = idx.checked_sub(1).unwrap_or(types.len() - 1);
+                                action_editor.match_type = types[prev_idx].clone();
+                            }
+                            ActionEditorField::Browser => {
+                                let browsers = Browser::all();
+                                match &action_editor.browser {
+                                    None => {
+                                        action_editor.browser = Some(browsers.last().unwrap().clone());
+                                    }
+                                    Some(b) => {
+                                        let idx = browsers.iter().position(|x| x == b).unwrap_or(0);
+                                        if idx == 0 {
+                                            action_editor.browser = None;
+                                        } else {
+                                            action_editor.browser = Some(browsers[idx - 1].clone());
+                                        }
+                                    }
                                 }
                             }
+                            _ => {}
+                        }
+                    }
+                    KeyCode::Right | KeyCode::Char('>') | KeyCode::Char('.') => {
+                        match action_editor.field {
+                            ActionEditorField::Type => {
+                                action_editor.action_type = action_editor.action_type.next();
+                            }
+                            ActionEditorField::MatchType => {
+                                let types = UrlMatchType::all();
+                                let idx = types
+                                    .iter()
+                                    .position(|t| t == &action_editor.match_type)
+                                    .unwrap_or(0);
+                                let next_idx = (idx + 1) % types.len();
+                                action_editor.match_type = types[next_idx].clone();
+                            }
+                            ActionEditorField::Browser => {
+                                let browsers = Browser::all();
+                                match &action_editor.browser {
+                                    None => {
+                                        action_editor.browser = Some(browsers[0].clone());
+                                    }
+                                    Some(b) => {
+                                        let idx = browsers.iter().position(|x| x == b).unwrap_or(0);
+                                        if idx == browsers.len() - 1 {
+                                            action_editor.browser = None;
+                                        } else {
+                                            action_editor.browser = Some(browsers[idx + 1].clone());
+                                        }
+                                    }
+                                }
+                            }
+                            _ => {}
                         }
                     }
                     _ => {}
                 }
             }
-            KeyCode::Char('<') | KeyCode::Char(',')
-                if action_editor.field != ActionEditorField::Target =>
-            {
-                // Character shortcuts only work when NOT in text input
-                match action_editor.field {
-                    ActionEditorField::Type => {
-                        action_editor.action_type = action_editor.action_type.prev();
-                    }
-                    ActionEditorField::MatchType => {
-                        let types = UrlMatchType::all();
-                        let idx = types
-                            .iter()
-                            .position(|t| t == &action_editor.match_type)
-                            .unwrap_or(0);
-                        let prev_idx = idx.checked_sub(1).unwrap_or(types.len() - 1);
-                        action_editor.match_type = types[prev_idx].clone();
-                    }
-                    ActionEditorField::Browser => {
-                        let browsers = Browser::all();
-                        match &action_editor.browser {
-                            None => {
-                                action_editor.browser = Some(browsers.last().unwrap().clone());
-                            }
-                            Some(b) => {
-                                let idx = browsers.iter().position(|x| x == b).unwrap_or(0);
-                                if idx == 0 {
-                                    action_editor.browser = None;
-                                } else {
-                                    action_editor.browser = Some(browsers[idx - 1].clone());
-                                }
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            KeyCode::Right => {
-                // Arrow keys work in all fields for navigation
-                match action_editor.field {
-                    ActionEditorField::Type => {
-                        action_editor.action_type = action_editor.action_type.next();
-                    }
-                    ActionEditorField::MatchType => {
-                        let types = UrlMatchType::all();
-                        let idx = types
-                            .iter()
-                            .position(|t| t == &action_editor.match_type)
-                            .unwrap_or(0);
-                        let next_idx = (idx + 1) % types.len();
-                        action_editor.match_type = types[next_idx].clone();
-                    }
-                    ActionEditorField::Browser => {
-                        let browsers = Browser::all();
-                        match &action_editor.browser {
-                            None => {
-                                action_editor.browser = Some(browsers[0].clone());
-                            }
-                            Some(b) => {
-                                let idx = browsers.iter().position(|x| x == b).unwrap_or(0);
-                                if idx == browsers.len() - 1 {
-                                    action_editor.browser = None;
-                                } else {
-                                    action_editor.browser = Some(browsers[idx + 1].clone());
-                                }
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            KeyCode::Char('>') | KeyCode::Char('.')
-                if action_editor.field != ActionEditorField::Target =>
-            {
-                // Character shortcuts only work when NOT in text input
-                match action_editor.field {
-                    ActionEditorField::Type => {
-                        action_editor.action_type = action_editor.action_type.next();
-                    }
-                    ActionEditorField::MatchType => {
-                        let types = UrlMatchType::all();
-                        let idx = types
-                            .iter()
-                            .position(|t| t == &action_editor.match_type)
-                            .unwrap_or(0);
-                        let next_idx = (idx + 1) % types.len();
-                        action_editor.match_type = types[next_idx].clone();
-                    }
-                    ActionEditorField::Browser => {
-                        let browsers = Browser::all();
-                        match &action_editor.browser {
-                            None => {
-                                action_editor.browser = Some(browsers[0].clone());
-                            }
-                            Some(b) => {
-                                let idx = browsers.iter().position(|x| x == b).unwrap_or(0);
-                                if idx == browsers.len() - 1 {
-                                    action_editor.browser = None;
-                                } else {
-                                    action_editor.browser = Some(browsers[idx + 1].clone());
-                                }
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            KeyCode::Char(c) if action_editor.field == ActionEditorField::Target => {
-                // When in Target field, all characters go into the text field
-                action_editor.target.push(c);
-                // Show autocomplete for App type
-                if action_editor.action_type == crate::app::ActionType::App {
-                    let target = action_editor.target.clone();
-                    app.update_app_autocomplete(&target);
-                }
-            }
-            KeyCode::Backspace => {
-                if action_editor.field == ActionEditorField::Target {
-                    action_editor.target.pop();
-                    // Update autocomplete for App type
-                    if action_editor.action_type == crate::app::ActionType::App {
-                        let target = action_editor.target.clone();
-                        app.update_app_autocomplete(&target);
-                    }
-                }
-            }
-            KeyCode::Down => {
-                if app.show_autocomplete && action_editor.field == ActionEditorField::Target {
-                    app.next_autocomplete();
-                } else if action_editor.field == ActionEditorField::Target {
-                    // Only navigate if not in autocomplete
-                }
-            }
-            KeyCode::Up => {
-                if app.show_autocomplete && action_editor.field == ActionEditorField::Target {
-                    app.prev_autocomplete();
-                }
-            }
-            _ => {}
         }
         return Ok(());
     }
 
     // Binding editor (not action editor)
-    match key {
-        KeyCode::Esc => {
+
+    // Esc: exit edit mode or cancel editor
+    if key == KeyCode::Esc {
+        if editor.edit_mode {
+            editor.edit_mode = false;
+            app.show_autocomplete = false;
+        } else {
             app.show_autocomplete = false;
             app.cancel_edit();
         }
-        KeyCode::Char('s') if editor.field == EditorField::Actions => {
-            // Save binding with 's' when in Actions field
-            if !editor.key.is_empty() {
-                app.show_autocomplete = false;
-                app.save_binding();
-            }
-        }
-        KeyCode::Enter => {
-            // Enter selects autocomplete if shown
-            if app.show_autocomplete {
-                if let Some(suggestion) = app
-                    .autocomplete_suggestions
-                    .get(app.autocomplete_selected)
-                    .cloned()
-                {
-                    if let Some(ed) = app.binding_editor.as_mut() {
-                        if ed.field == EditorField::Key {
-                            ed.key = suggestion.value;
+        return Ok(());
+    }
+
+    // Tab/Shift-Tab: always navigate fields (regardless of mode)
+    if key == KeyCode::Tab {
+        app.show_autocomplete = false;
+        editor.edit_mode = false; // Exit edit mode when switching fields
+        editor.next_field();
+        return Ok(());
+    }
+    if key == KeyCode::BackTab {
+        app.show_autocomplete = false;
+        editor.edit_mode = false; // Exit edit mode when switching fields
+        editor.prev_field();
+        return Ok(());
+    }
+
+    // Field-specific handling based on edit mode
+    match editor.field {
+        EditorField::Key | EditorField::Description => {
+            if editor.edit_mode {
+                // EDIT MODE: handle text input
+                match key {
+                    KeyCode::Enter => {
+                        // Finish editing if not using autocomplete
+                        if app.show_autocomplete && editor.field == EditorField::Key {
+                            // Select autocomplete
+                            if let Some(suggestion) = app
+                                .autocomplete_suggestions
+                                .get(app.autocomplete_selected)
+                                .cloned()
+                            {
+                                if let Some(ed) = app.binding_editor.as_mut() {
+                                    ed.key = suggestion.value;
+                                }
+                            }
+                            app.show_autocomplete = false;
+                        } else {
+                            // Finish editing
+                            editor.edit_mode = false;
+                            app.show_autocomplete = false;
+                        }
+                    }
+                    _ => {
+                        if editor.field == EditorField::Key {
+                            handle_key_field_input(app, key)?;
+                        } else {
+                            handle_description_field_input(app, key)?;
                         }
                     }
                 }
-                app.show_autocomplete = false;
-            } else if editor.field == EditorField::Actions && !editor.actions.is_empty() {
-                // Edit selected action
-                editor.start_editing_action();
+            } else {
+                // NAV MODE: shortcuts work
+                match key {
+                    KeyCode::Enter => {
+                        // Start editing
+                        editor.edit_mode = true;
+                        if editor.field == EditorField::Key {
+                            let key_clone = editor.key.clone();
+                            app.update_autocomplete(&key_clone);
+                        }
+                    }
+                    KeyCode::Char('s') => {
+                        // Save binding (works in all NAV mode fields)
+                        if !editor.key.is_empty() {
+                            app.save_binding();
+                        }
+                    }
+                    _ => {}
+                }
             }
         }
-        KeyCode::Tab => {
-            app.show_autocomplete = false;
-            editor.next_field();
+        EditorField::Actions => {
+            // Actions field: always in "list nav mode", edit_mode doesn't apply
+            match key {
+                KeyCode::Char('s') => {
+                    // Save binding
+                    if !editor.key.is_empty() {
+                        app.save_binding();
+                    }
+                }
+                KeyCode::Enter | KeyCode::Char('e') => {
+                    // Edit selected action
+                    if !editor.actions.is_empty() {
+                        editor.start_editing_action();
+                    }
+                }
+                KeyCode::Char('a') => {
+                    editor.start_adding_action();
+                }
+                KeyCode::Char('d') => {
+                    editor.delete_selected_action();
+                }
+                KeyCode::Char('k') | KeyCode::Up => {
+                    if editor.selected_action > 0 {
+                        editor.selected_action -= 1;
+                    }
+                }
+                KeyCode::Char('j') | KeyCode::Down => {
+                    if editor.selected_action < editor.actions.len().saturating_sub(1) {
+                        editor.selected_action += 1;
+                    }
+                }
+                KeyCode::Char('K') => {
+                    editor.move_action_up();
+                }
+                KeyCode::Char('J') => {
+                    editor.move_action_down();
+                }
+                _ => {}
+            }
         }
-        KeyCode::BackTab => {
-            app.show_autocomplete = false;
-            editor.prev_field();
-        }
-        _ => match editor.field {
-            EditorField::Key => handle_key_field(app, key)?,
-            EditorField::Description => handle_description_field(app, key)?,
-            EditorField::Actions => handle_actions_field(app, key)?,
-        },
     }
 
     Ok(())
 }
 
-fn handle_key_field(app: &mut App, key: KeyCode) -> Result<()> {
+fn handle_key_field_input(app: &mut App, key: KeyCode) -> Result<()> {
     match key {
         KeyCode::Char(c) => {
             if let Some(editor) = app.binding_editor.as_mut() {
@@ -477,7 +517,7 @@ fn handle_key_field(app: &mut App, key: KeyCode) -> Result<()> {
     Ok(())
 }
 
-fn handle_description_field(app: &mut App, key: KeyCode) -> Result<()> {
+fn handle_description_field_input(app: &mut App, key: KeyCode) -> Result<()> {
     let editor = app.binding_editor.as_mut().unwrap();
 
     match key {
@@ -486,41 +526,6 @@ fn handle_description_field(app: &mut App, key: KeyCode) -> Result<()> {
         }
         KeyCode::Backspace => {
             editor.description.pop();
-        }
-        _ => {}
-    }
-
-    Ok(())
-}
-
-fn handle_actions_field(app: &mut App, key: KeyCode) -> Result<()> {
-    let editor = app.binding_editor.as_mut().unwrap();
-
-    match key {
-        KeyCode::Char('a') => {
-            editor.start_adding_action();
-        }
-        KeyCode::Char('e') => {
-            editor.start_editing_action();
-        }
-        KeyCode::Char('d') => {
-            editor.delete_selected_action();
-        }
-        KeyCode::Char('k') | KeyCode::Up => {
-            if editor.selected_action > 0 {
-                editor.selected_action -= 1;
-            }
-        }
-        KeyCode::Char('j') | KeyCode::Down => {
-            if editor.selected_action < editor.actions.len().saturating_sub(1) {
-                editor.selected_action += 1;
-            }
-        }
-        KeyCode::Char('K') => {
-            editor.move_action_up();
-        }
-        KeyCode::Char('J') => {
-            editor.move_action_down();
         }
         _ => {}
     }
