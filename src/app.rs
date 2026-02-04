@@ -321,7 +321,7 @@ pub struct App {
     pub discovered_apps: Vec<DiscoveredApp>,
     pub apps_loading: bool,
 
-    // Dynamic bindings (ephemeral suggestions for missing cmd+letter keys)
+    // Dynamic bindings (ephemeral suggestions for missing rcmd+letter keys)
     pub dynamic_bindings: Vec<Binding>,
 }
 
@@ -611,9 +611,9 @@ impl App {
 
         let mut dynamics = Vec::new();
 
-        // For each letter a-z, check if cmd+letter exists
+        // For each letter a-z, check if rcmd+letter exists
         for letter in b'a'..=b'z' {
-            let key = format!("cmd+{}", letter as char);
+            let key = format!("{}", letter as char);
 
             if existing_keys.contains(&key) {
                 continue; // Skip if already exists
