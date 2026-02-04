@@ -1,6 +1,6 @@
 use crate::app_discovery::DiscoveredApp;
 use crate::config::{Action, Binding, Browser, Config, UrlMatchType};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone)]
@@ -320,6 +320,9 @@ pub struct App {
     // App discovery state
     pub discovered_apps: Vec<DiscoveredApp>,
     pub apps_loading: bool,
+
+    // Dynamic bindings (ephemeral suggestions for missing cmd+letter keys)
+    pub dynamic_bindings: Vec<Binding>,
 }
 
 impl App {
@@ -339,6 +342,7 @@ impl App {
             show_autocomplete: false,
             discovered_apps: Vec::new(),
             apps_loading: false,
+            dynamic_bindings: Vec::new(),
         }
     }
 
@@ -363,17 +367,19 @@ impl App {
 
     // Bindings list navigation
     pub fn next_binding(&mut self) {
-        if !self.config.bindings.is_empty() {
-            self.selected_binding = (self.selected_binding + 1) % self.config.bindings.len();
+        let total = self.config.bindings.len() + self.dynamic_bindings.len();
+        if total > 0 {
+            self.selected_binding = (self.selected_binding + 1) % total;
         }
     }
 
     pub fn prev_binding(&mut self) {
-        if !self.config.bindings.is_empty() {
+        let total = self.config.bindings.len() + self.dynamic_bindings.len();
+        if total > 0 {
             self.selected_binding = self
                 .selected_binding
                 .checked_sub(1)
-                .unwrap_or(self.config.bindings.len() - 1);
+                .unwrap_or(total - 1);
         }
     }
 
@@ -384,20 +390,67 @@ impl App {
     }
 
     pub fn start_edit_binding(&mut self) {
-        if let Some(binding) = self.config.bindings.get(self.selected_binding) {
-            self.binding_editor = Some(BindingEditor::from_binding(binding));
-            self.editing_binding_index = Some(self.selected_binding);
-            self.input_mode = InputMode::Editing;
+        let saved_count = self.config.bindings.len();
+
+        if self.selected_binding < saved_count {
+            // Editing a saved binding
+            if let Some(binding) = self.config.bindings.get(self.selected_binding) {
+                self.binding_editor = Some(BindingEditor::from_binding(binding));
+                self.editing_binding_index = Some(self.selected_binding);
+                self.input_mode = InputMode::Editing;
+            }
+        } else {
+            // Editing a dynamic binding - convert to saved first
+            let dynamic_index = self.selected_binding - saved_count;
+            if let Some(binding) = self.dynamic_bindings.get(dynamic_index).cloned() {
+                // Add to saved bindings
+                self.config.bindings.push(binding.clone());
+                self.config.bindings.sort_by(|a, b| a.key.cmp(&b.key));
+
+                // Remove from dynamic
+                self.dynamic_bindings.remove(dynamic_index);
+
+                // Find the new index after sorting
+                let new_index = self.config.bindings
+                    .iter()
+                    .position(|b| b.key == binding.key)
+                    .unwrap_or(0);
+
+                // Start editing the newly converted binding
+                self.binding_editor = Some(BindingEditor::from_binding(&binding));
+                self.editing_binding_index = Some(new_index);
+                self.selected_binding = new_index;
+                self.input_mode = InputMode::Editing;
+
+                // Regenerate dynamics
+                self.generate_dynamic_bindings();
+            }
         }
     }
 
     pub fn delete_binding(&mut self) {
-        if !self.config.bindings.is_empty() {
-            self.config.bindings.remove(self.selected_binding);
-            if self.selected_binding >= self.config.bindings.len()
-                && !self.config.bindings.is_empty()
-            {
-                self.selected_binding = self.config.bindings.len() - 1;
+        let saved_count = self.config.bindings.len();
+
+        if self.selected_binding < saved_count {
+            // Deleting a saved binding
+            if !self.config.bindings.is_empty() {
+                self.config.bindings.remove(self.selected_binding);
+                let total = self.config.bindings.len() + self.dynamic_bindings.len();
+                if self.selected_binding >= total && total > 0 {
+                    self.selected_binding = total - 1;
+                }
+                // Regenerate dynamics after deleting saved binding
+                self.generate_dynamic_bindings();
+            }
+        } else {
+            // Deleting a dynamic binding - just remove from list
+            let dynamic_index = self.selected_binding - saved_count;
+            if dynamic_index < self.dynamic_bindings.len() {
+                self.dynamic_bindings.remove(dynamic_index);
+                let total = self.config.bindings.len() + self.dynamic_bindings.len();
+                if self.selected_binding >= total && total > 0 {
+                    self.selected_binding = total - 1;
+                }
             }
         }
     }
@@ -422,6 +475,10 @@ impl App {
                 self.config.bindings.push(binding);
                 self.selected_binding = self.config.bindings.len() - 1;
             }
+
+            // Sort bindings alphabetically by key
+            self.config.bindings.sort_by(|a, b| a.key.cmp(&b.key));
+
             self.input_mode = InputMode::Normal;
         }
     }
@@ -538,6 +595,47 @@ impl App {
         self.discovered_apps = merged.clone();
         self.config.cached_apps = merged;
         self.apps_loading = false;
+    }
+
+    pub fn generate_dynamic_bindings(&mut self) {
+        // Get set of existing keys from saved bindings
+        let existing_keys: HashSet<String> = self
+            .config
+            .bindings
+            .iter()
+            .map(|b| b.key.clone())
+            .collect();
+
+        let mut dynamics = Vec::new();
+
+        // For each letter a-z, check if cmd+letter exists
+        for letter in b'a'..=b'z' {
+            let key = format!("cmd+{}", letter as char);
+
+            if existing_keys.contains(&key) {
+                continue; // Skip if already exists
+            }
+
+            // Find first app that starts with this letter (case-insensitive)
+            let matching_app = self.discovered_apps.iter().find(|app| {
+                app.name.to_lowercase().starts_with(letter as char)
+            });
+
+            if let Some(app) = matching_app {
+                // Create dynamic binding with suggested app
+                let binding = Binding {
+                    key: key.clone(),
+                    description: format!("Open {}", app.name),
+                    actions: vec![Action::App {
+                        target: app.name.clone(),
+                        bundle_id: Some(app.bundle_id.clone()),
+                    }],
+                };
+                dynamics.push(binding);
+            }
+        }
+
+        self.dynamic_bindings = dynamics;
     }
 
     pub fn select_autocomplete(&mut self) -> Option<AutocompleteSuggestion> {

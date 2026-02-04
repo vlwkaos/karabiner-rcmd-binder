@@ -28,7 +28,11 @@ pub fn load_config() -> Result<Config> {
     }
     let content = fs::read_to_string(&path)
         .with_context(|| format!("Failed to read config from {:?}", path))?;
-    let config: Config = toml::from_str(&content).with_context(|| "Failed to parse config TOML")?;
+    let mut config: Config = toml::from_str(&content).with_context(|| "Failed to parse config TOML")?;
+
+    // Sort bindings alphabetically by key
+    config.rcmd_bindings.sort_by(|a, b| a.key.cmp(&b.key));
+
     Ok(config)
 }
 
