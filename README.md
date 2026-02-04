@@ -2,19 +2,16 @@
 
 TUI for easily configuring Karabiner-Elements right_command key bindings with support for app launching, URL focusing, and action cycling.
 
-<img width="1644" height="1756" alt="image" src="https://github.com/user-attachments/assets/8f0f46c7-3204-44d0-8643-187194b81162" />
+<img width="750" height="809" alt="image" src="https://github.com/user-attachments/assets/7a382a77-228c-4649-b8df-06e25dbda7fb" />
 
 ## Features
 
-- **Simple TUI**: Easy-to-navigate terminal interface
-- **Action Types**: 
-  - App: Launch/focus applications
-  - URL: Open URLs with smart browser tab focusing
-  - Shell: Run custom shell commands
-- **Cycling Support**: Assign multiple actions to the same key (cycles in order)
-- **Browser Tab Matching**: exact, domain, path, or glob patterns
-- **Multi-browser Support**: Firefox, Chrome, Safari, Arc, Edge (set per-action or use default)
-- **Key Autocomplete**: Type partial key names, get suggestions
+- **Nav/Edit Mode System**: Clear two-mode interaction - shortcuts in Nav mode, text input in Edit mode
+- **Dynamic Bindings**: Auto-suggestions for unassigned rcmd+{letter} keys based on installed apps
+- **Action Types**: App launch, URL with smart tab focusing, or shell commands
+- **Action Cycling**: Multiple actions per key cycle in order
+- **Browser Control**: Per-action browser override with tab matching (exact, domain, path, glob)
+- **App Discovery**: Autocomplete from running + installed apps with 30-day cache
 - **Safe Updates**: Automatic backups (keeps last 3) before modifying karabiner.json
 
 ## Installation
@@ -49,34 +46,43 @@ cargo build --release
 
 ## Usage
 
-### TUI Navigation
+### Quick Start: Nav/Edit Modes
 
-**Normal Mode:**
+The TUI uses **two modes** (like vim):
+- **Nav Mode** (cyan border, `[NAV]`): Shortcuts active (s/a/e/d), navigate with j/k
+- **Edit Mode** (green border, `[EDIT]`): Text input active, type freely
+
+**Toggle**: Press `Enter` to start editing, `Enter` again to finish
+
+### Keyboard Shortcuts
+
+**Global** (all modes):
 - `q` - Quit
-- `Tab` - Switch between Bindings/Settings tabs
-- `s` - Save configuration to karabiner.json
+- `Tab` / `Shift+Tab` - Switch tabs or navigate fields
+- `s` - Save to karabiner.json
 
-**Bindings Tab:**
-- `j`/`k` or `↑`/`↓` - Navigate list
+**Bindings Tab** (Nav mode):
+- `j`/`k` or `↑`/`↓` - Navigate bindings
 - `a` - Add new binding
 - `e` or `Enter` - Edit selected binding
-- `d` - Delete selected binding
+- `d` - Delete binding
 
-**Editing Mode:**
-- `Tab` - Next field
-- `Shift+Tab` - Previous field
-- `Enter` - Save/confirm
-- `Esc` - Cancel
+**Binding Editor**:
+- Nav mode: `Enter` to edit field, `s` to save, `Tab` to switch fields
+- Edit mode: Type text, `Enter` to finish, `Esc` to cancel
 
-**In Action Editor:**
-- `<`/`>` or `,`/`.` - Change type/match type/browser
-- Type to enter text in input fields
-- `a` - Add action (when in Actions field)
-- `e` - Edit action (when in Actions field)
-- `d` - Delete action (when in Actions field)
+**Actions Field**:
+- `a` - Add action
+- `e` / `Enter` - Edit action
+- `d` - Delete action
 - `j`/`k` - Navigate actions
-- `Shift+J`/`Shift+K` - Move action up/down
-- **Note**: For URL actions, each can have its own browser override!
+- `J`/`K` - Move action up/down
+
+**Action Editor**:
+- Nav mode: `Enter` to edit Target, `←`/`→` to cycle Type/Browser, `s` to save
+- Edit mode: Type target (app name/URL/command), `Enter` to finish
+
+**Tip**: Status bar (bottom) shows all available shortcuts for current context
 
 ### Configuration
 
@@ -109,48 +115,41 @@ match = "domain"
 browser = "chrome"
 ```
 
+### Dynamic Bindings
+
+On startup, the TUI auto-generates **suggestions** for unassigned `rcmd+{letter}` keys:
+- Appears in **darker gray** below your saved bindings
+- Matches first installed app starting with that letter (rcmd+s → Slack, rcmd+c → Chrome)
+- **Edit a suggestion** (press `e`) to convert it to a saved binding
+- **Delete a suggestion** (press `d`) to remove it (doesn't affect saved bindings)
+- Regenerates automatically when gaps appear
+
 ### How It Works
 
-1. **Edit bindings** in the TUI
+1. **Edit bindings** in the TUI (Nav mode: shortcuts, Edit mode: text input)
 2. **Press `s`** to save
-3. The app:
-   - Saves your config to `~/.config/karabiner-rcmd-binder/config.toml`
-   - Creates a backup of `karabiner.json` (timestamped, keeps last 3)
-   - Generates Karabiner rules with `[rcmdb]` prefix
-   - Installs helper scripts to `~/.config/karabiner-rcmd-binder/scripts/`
-   - Updates `~/.config/karabiner/karabiner.json`
-4. **Karabiner automatically reloads** the config
+3. Creates backup of `karabiner.json` and updates with `[rcmdb]` rules
+4. **Karabiner auto-reloads** - your bindings work immediately
 5. **Use your bindings**: `rcmd+<key>` triggers the action(s)
 
-### Example: Cycling Through Apps
+### Examples
 
-Add a binding with key `t` and multiple App actions:
-1. Terminal
-2. iTerm
-3. Warp
+**Cycling Apps**: Add multiple App actions to one key
+```
+rcmd+t → Terminal → iTerm → Warp → (cycles)
+```
 
-Now pressing `rcmd+t` will cycle: Terminal → iTerm → Warp → Terminal → ...
+**Smart URL with Browser**: URL action with browser override
+```
+rcmd+g → https://github.com (Chrome)
+  - Focuses existing github.com tab if open
+  - Opens in Chrome regardless of default browser
+```
 
-### Example: Smart URL Opening with Browser Override
-
-Add a binding with key `g` and URL action:
-- **Target**: `https://github.com/notifications`
-- **Match**: `domain`
-- **Browser**: `chrome` (overrides default!)
-
-Now pressing `rcmd+g` will:
-- If Chrome has a tab open with `github.com/*`, focus that tab
-- Otherwise, open the URL in a new Chrome tab
-- **Always uses Chrome** for this action, regardless of default browser setting
-
-### Example: Multiple URLs with Different Browsers
-
-Add a binding with key `w` and multiple URL actions:
-1. `https://mail.google.com` - Browser: Chrome
-2. `https://github.com` - Browser: Firefox
-3. `https://linear.app` - Browser: Arc
-
-Now pressing `rcmd+w` cycles through Gmail (Chrome) → GitHub (Firefox) → Linear (Arc)
+**Multi-Browser URLs**: Different browsers per URL
+```
+rcmd+w → Gmail (Chrome) → GitHub (Firefox) → Linear (Arc) → (cycles)
+```
 
 ## Match Types for URLs
 
@@ -173,14 +172,14 @@ Now pressing `rcmd+w` cycles through Gmail (Chrome) → GitHub (Firefox) → Lin
 
 ## FAQ
 
-**Q: Can I use different browsers for different URLs?**  
-**A: YES!** Each URL action has its own browser field. When editing a URL action, Tab to the Browser field and press `<`/`>` to select a specific browser. This overrides the default browser from Settings. See `BROWSER-SUPPORT.md` for details.
+**Q: What are dynamic bindings?**
+Suggestions for unassigned rcmd+{letter} keys (shown in gray). Edit them to convert to saved bindings.
 
-**Q: What's the difference between default browser and per-action browser?**  
-**A:** 
-- **Default browser** (in Settings tab): Used when URL action's browser is "(use default)"
-- **Per-action browser**: Overrides default for that specific URL action
-- You can mix both! Some URLs use default, others use specific browsers.
+**Q: How do Nav/Edit modes work?**
+Nav mode (cyan): shortcuts active. Edit mode (green): text input active. Press Enter to toggle.
+
+**Q: Can I use different browsers for different URLs?**
+Yes! Each URL action has its own browser field (Tab to Browser, `←`/`→` to change).
 
 ## Troubleshooting
 

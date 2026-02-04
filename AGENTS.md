@@ -4,12 +4,22 @@ TUI for Karabiner-Elements right_command key bindings.
 
 ## Project Knowledge
 
-MUST use knowledge-user skill when needing context about plan, big picture, architecture, domain, data models, or coding patterns.
+MUST use qmd search when needing context about plan, big picture, architecture, domain, or coding patterns.
 
-For session continue see @knowledge/session/
-For big picture (how one change affects others, plan), see @knowledge/bigpicture/BIGPICTURE.md and @knowledge/bigpicture/PLAN.md
-For semantic understanding of domain concepts (data model, entities, relationships, workflows), see @knowledge/domain/DOMAIN.md
-For project-specific coding patterns, standards, and best practices, see @knowledge/coding/CODING.md
+**Big Picture**:
+- @qmd://karabiner-rcmd-binder/bigpicture/BIGPICTURE.md - Project overview, architecture layers
+- @qmd://karabiner-rcmd-binder/bigpicture/PLAN.md - Feature roadmap, decision log
+
+**Domain**:
+- @qmd://karabiner-rcmd-binder/domain/karabiner-integration.md - How TUI integrates with Karabiner-Elements
+- @qmd://karabiner-rcmd-binder/domain/dynamic-bindings.md - Ephemeral suggestion system
+
+**Coding**:
+- @qmd://karabiner-rcmd-binder/coding/nav-edit-mode-pattern.md - Two-mode UX implementation
+- @qmd://karabiner-rcmd-binder/coding/ratatui-architecture.md - State management, rendering separation
+- @qmd://karabiner-rcmd-binder/coding/keyboard-handling.md - Event routing patterns
+
+**Sessions**: @qmd://karabiner-rcmd-binder/session/ - Recent work context
 
 ## Quick Start
 
