@@ -12,3 +12,6 @@ dist/
 *.asc
 *.tar.gz*
 
+GPG-PRIVATE-KEY-BACKUP.asc
+GPG-PUBLIC-KEY.asc
+rcmdb-0.3.0-darwin-arm64.tar.gz.asc
