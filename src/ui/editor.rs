@@ -62,9 +62,10 @@ pub fn draw_editor(frame: &mut Frame, app: &App, area: Rect) {
     } else {
         Style::default()
     };
+    let key_title = format!(" Key ({}+) ", app.config.settings.anchor_key.display_prefix());
     let key_block = Block::default()
         .borders(Borders::ALL)
-        .title(" Key (rcmd+) ")
+        .title(key_title)
         .border_style(key_style);
     let key_text = Paragraph::new(editor.key.as_str()).block(key_block);
     frame.render_widget(key_text, chunks[0]);

@@ -18,7 +18,7 @@ use std::io;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
-use app::{ActionEditorField, App, EditorField, InputMode, Tab};
+use app::{ActionEditorField, App, EditorField, InputMode, SettingsField, Tab};
 use app_discovery::DiscoveredApp;
 use config::{load_config, save_config, Browser, UrlMatchType};
 use karabiner::apply_to_karabiner;
@@ -157,11 +157,19 @@ fn handle_bindings_normal(
 
 fn handle_settings_normal(app: &mut App, key: KeyCode) -> Result<()> {
     match key {
+        KeyCode::Char('j') | KeyCode::Down => app.next_settings_field(),
+        KeyCode::Char('k') | KeyCode::Up => app.next_settings_field(),
         KeyCode::Left | KeyCode::Char('h') | KeyCode::Char(',') | KeyCode::Char('<') => {
-            app.prev_browser();
+            match app.settings_field {
+                SettingsField::AnchorKey => app.prev_anchor_key(),
+                SettingsField::DefaultBrowser => app.prev_browser(),
+            }
         }
         KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('.') | KeyCode::Char('>') => {
-            app.next_browser();
+            match app.settings_field {
+                SettingsField::AnchorKey => app.next_anchor_key(),
+                SettingsField::DefaultBrowser => app.next_browser(),
+            }
         }
         _ => {}
     }

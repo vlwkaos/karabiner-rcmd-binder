@@ -18,7 +18,7 @@ pub fn draw_bindings(frame: &mut Frame, app: &App, area: Rect) {
         .iter()
         .enumerate()
         .map(|(i, binding)| {
-            let key = format!("{:<12}", binding.display_key());
+            let key = format!("{:<12}", binding.display_key(&app.config.settings.anchor_key));
             let actions = format!("{:<40}", truncate(&binding.actions_summary(), 38));
             let desc = truncate(&binding.description, 30);
 
@@ -47,7 +47,7 @@ pub fn draw_bindings(frame: &mut Frame, app: &App, area: Rect) {
         .iter()
         .enumerate()
         .map(|(i, binding)| {
-            let key = format!("{:<12}", binding.display_key());
+            let key = format!("{:<12}", binding.display_key(&app.config.settings.anchor_key));
             let actions = format!("{:<40}", truncate(&binding.actions_summary(), 38));
             let desc = truncate(&binding.description, 30);
 

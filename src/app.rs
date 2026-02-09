@@ -1,5 +1,5 @@
 use crate::app_discovery::DiscoveredApp;
-use crate::config::{Action, Binding, Browser, Config, UrlMatchType};
+use crate::config::{Action, AnchorKey, Binding, Browser, Config, UrlMatchType};
 use std::collections::{HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -294,6 +294,7 @@ impl BindingEditor {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SettingsField {
+    AnchorKey,
     DefaultBrowser,
 }
 
@@ -336,7 +337,7 @@ impl App {
             selected_binding: 0,
             binding_editor: None,
             editing_binding_index: None,
-            settings_field: SettingsField::DefaultBrowser,
+            settings_field: SettingsField::AnchorKey,
             autocomplete_suggestions: Vec::new(),
             autocomplete_selected: 0,
             show_autocomplete: false,
@@ -686,5 +687,30 @@ impl App {
             .unwrap_or(0);
         let prev_idx = current_idx.checked_sub(1).unwrap_or(browsers.len() - 1);
         self.config.settings.default_browser = browsers[prev_idx].clone();
+    }
+
+    pub fn next_anchor_key(&mut self) {
+        let keys = AnchorKey::all();
+        let idx = keys
+            .iter()
+            .position(|k| k == &self.config.settings.anchor_key)
+            .unwrap_or(0);
+        self.config.settings.anchor_key = keys[(idx + 1) % keys.len()].clone();
+    }
+
+    pub fn prev_anchor_key(&mut self) {
+        let keys = AnchorKey::all();
+        let idx = keys
+            .iter()
+            .position(|k| k == &self.config.settings.anchor_key)
+            .unwrap_or(0);
+        self.config.settings.anchor_key = keys[idx.checked_sub(1).unwrap_or(keys.len() - 1)].clone();
+    }
+
+    pub fn next_settings_field(&mut self) {
+        self.settings_field = match self.settings_field {
+            SettingsField::AnchorKey => SettingsField::DefaultBrowser,
+            SettingsField::DefaultBrowser => SettingsField::AnchorKey,
+        };
     }
 }

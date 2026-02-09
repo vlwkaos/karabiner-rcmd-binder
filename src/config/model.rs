@@ -48,6 +48,41 @@ impl Browser {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AnchorKey {
+    #[default]
+    RightCommand,
+    RightOption,
+}
+
+impl AnchorKey {
+    pub fn all() -> &'static [AnchorKey] {
+        &[AnchorKey::RightCommand, AnchorKey::RightOption]
+    }
+
+    pub fn as_karabiner_modifier(&self) -> &'static str {
+        match self {
+            AnchorKey::RightCommand => "right_command",
+            AnchorKey::RightOption => "right_option",
+        }
+    }
+
+    pub fn display_prefix(&self) -> &'static str {
+        match self {
+            AnchorKey::RightCommand => "rcmd",
+            AnchorKey::RightOption => "ropt",
+        }
+    }
+
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            AnchorKey::RightCommand => "Right Command",
+            AnchorKey::RightOption => "Right Option",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum UrlMatchType {
@@ -163,13 +198,15 @@ impl Binding {
             .join(" -> ")
     }
 
-    pub fn display_key(&self) -> String {
-        format!("rcmd+{}", self.key)
+    pub fn display_key(&self, anchor_key: &AnchorKey) -> String {
+        format!("{}+{}", anchor_key.display_prefix(), self.key)
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
+    #[serde(default)]
+    pub anchor_key: AnchorKey,
     #[serde(default)]
     pub default_browser: Browser,
 }
@@ -177,6 +214,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            anchor_key: AnchorKey::default(),
             default_browser: Browser::Firefox,
         }
     }
