@@ -390,6 +390,40 @@ impl App {
         self.input_mode = InputMode::Editing;
     }
 
+    /// Returns true if currently on a dynamic (suggested) binding
+    pub fn is_on_dynamic_binding(&self) -> bool {
+        self.selected_binding >= self.config.bindings.len()
+    }
+
+    /// Promote selected dynamic binding to saved bindings without opening editor
+    pub fn add_dynamic_binding(&mut self) {
+        let saved_count = self.config.bindings.len();
+        if self.selected_binding < saved_count {
+            return; // Not on a dynamic binding
+        }
+
+        let dynamic_index = self.selected_binding - saved_count;
+        if let Some(binding) = self.dynamic_bindings.get(dynamic_index).cloned() {
+            // Add to saved bindings
+            self.config.bindings.push(binding.clone());
+            self.config.bindings.sort_by(|a, b| a.key.cmp(&b.key));
+
+            // Remove from dynamic
+            self.dynamic_bindings.remove(dynamic_index);
+
+            // Find the new index after sorting
+            let new_index = self.config.bindings
+                .iter()
+                .position(|b| b.key == binding.key)
+                .unwrap_or(0);
+
+            self.selected_binding = new_index;
+
+            // Regenerate dynamics
+            self.generate_dynamic_bindings();
+        }
+    }
+
     pub fn start_edit_binding(&mut self) {
         let saved_count = self.config.bindings.len();
 

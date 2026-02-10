@@ -142,7 +142,11 @@ fn handle_bindings_normal(
             app.prev_binding();
         }
         KeyCode::Char('a') => {
-            app.start_new_binding();
+            if app.is_on_dynamic_binding() {
+                app.add_dynamic_binding();
+            } else {
+                app.start_new_binding();
+            }
         }
         KeyCode::Char('e') | KeyCode::Enter => {
             app.start_edit_binding();
