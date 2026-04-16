@@ -296,6 +296,7 @@ impl BindingEditor {
 pub enum SettingsField {
     AnchorKey,
     DefaultBrowser,
+    CenterMouse,
 }
 
 pub struct App {
@@ -741,10 +742,15 @@ impl App {
         self.config.settings.anchor_key = keys[idx.checked_sub(1).unwrap_or(keys.len() - 1)].clone();
     }
 
+    pub fn toggle_center_mouse(&mut self) {
+        self.config.settings.center_mouse = !self.config.settings.center_mouse;
+    }
+
     pub fn next_settings_field(&mut self) {
         self.settings_field = match self.settings_field {
             SettingsField::AnchorKey => SettingsField::DefaultBrowser,
-            SettingsField::DefaultBrowser => SettingsField::AnchorKey,
+            SettingsField::DefaultBrowser => SettingsField::CenterMouse,
+            SettingsField::CenterMouse => SettingsField::AnchorKey,
         };
     }
 }

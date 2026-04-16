@@ -219,6 +219,73 @@ EOF
 esac
 "#;
 
+/// Embedded center-mouse.sh script
+const CENTER_MOUSE_SCRIPT: &str = r#"#!/bin/bash
+# center-mouse.sh <bundle_id>
+# Polls until target app is frontmost (up to 0.5s), then centers mouse on its window.
+# Kills any prior instance for the same bundle_id (cancel + restart semantics).
+
+BUNDLE_ID="$1"
+
+if [ -z "$BUNDLE_ID" ]; then
+    exit 1
+fi
+
+SAFE_ID=$(printf '%s' "$BUNDLE_ID" | tr '.' '_' | tr '/' '_')
+LOCK_DIR="${TMPDIR%/}/rcmdb-center"
+LOCK_FILE="${LOCK_DIR}/${SAFE_ID}.pid"
+
+mkdir -p "$LOCK_DIR"
+
+# Kill previous instance for the same app
+if [ -f "$LOCK_FILE" ]; then
+    OLD_PID=$(cat "$LOCK_FILE" 2>/dev/null)
+    if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
+        # Kill children (e.g. osascript) then the shell itself
+        for child in $(pgrep -P "$OLD_PID" 2>/dev/null); do
+            kill "$child" 2>/dev/null
+        done
+        kill "$OLD_PID" 2>/dev/null
+    fi
+fi
+
+printf '%d' $$ > "$LOCK_FILE"
+trap 'rm -f "$LOCK_FILE"' EXIT
+
+osascript -l JavaScript - "$BUNDLE_ID" << 'JSEOF'
+ObjC.import('CoreGraphics');
+
+function run(argv) {
+    var targetBundle = argv[0];
+    var timeout = 0.5;
+    var interval = 0.05;
+    var elapsed = 0;
+    var sysEvt = Application('System Events');
+
+    while (elapsed < timeout) {
+        try {
+            var procs = sysEvt.processes.whose({ frontmost: true })();
+            if (procs.length > 0) {
+                var front = procs[0];
+                if (front.bundleIdentifier() === targetBundle) {
+                    var win = front.windows[0];
+                    var pos = win.position();
+                    var sz = win.size();
+                    $.CGWarpMouseCursorPosition({
+                        x: pos[0] + sz[0] / 2,
+                        y: pos[1] + sz[1] / 2
+                    });
+                    return;
+                }
+            }
+        } catch(e) {}
+        delay(interval);
+        elapsed += interval;
+    }
+}
+JSEOF
+"#;
+
 /// Install helper scripts to the config directory
 pub fn install_scripts() -> Result<PathBuf> {
     let scripts_dir = ensure_scripts_dir()?;
@@ -227,11 +294,17 @@ pub fn install_scripts() -> Result<PathBuf> {
     let url_focus_path = scripts_dir.join("url-focus.sh");
     fs::write(&url_focus_path, URL_FOCUS_SCRIPT)
         .with_context(|| format!("Failed to write {:?}", url_focus_path))?;
-
-    // Make executable
     let mut perms = fs::metadata(&url_focus_path)?.permissions();
     perms.set_mode(0o755);
     fs::set_permissions(&url_focus_path, perms)?;
+
+    // Install center-mouse.sh
+    let center_mouse_path = scripts_dir.join("center-mouse.sh");
+    fs::write(&center_mouse_path, CENTER_MOUSE_SCRIPT)
+        .with_context(|| format!("Failed to write {:?}", center_mouse_path))?;
+    let mut perms = fs::metadata(&center_mouse_path)?.permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&center_mouse_path, perms)?;
 
     Ok(scripts_dir)
 }

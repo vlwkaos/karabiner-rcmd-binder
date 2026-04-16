@@ -163,16 +163,21 @@ fn handle_settings_normal(app: &mut App, key: KeyCode) -> Result<()> {
     match key {
         KeyCode::Char('j') | KeyCode::Down => app.next_settings_field(),
         KeyCode::Char('k') | KeyCode::Up => app.next_settings_field(),
+        KeyCode::Char(' ') if app.settings_field == SettingsField::CenterMouse => {
+            app.toggle_center_mouse();
+        }
         KeyCode::Left | KeyCode::Char('h') | KeyCode::Char(',') | KeyCode::Char('<') => {
             match app.settings_field {
                 SettingsField::AnchorKey => app.prev_anchor_key(),
                 SettingsField::DefaultBrowser => app.prev_browser(),
+                SettingsField::CenterMouse => app.toggle_center_mouse(),
             }
         }
         KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('.') | KeyCode::Char('>') => {
             match app.settings_field {
                 SettingsField::AnchorKey => app.next_anchor_key(),
                 SettingsField::DefaultBrowser => app.next_browser(),
+                SettingsField::CenterMouse => app.toggle_center_mouse(),
             }
         }
         _ => {}

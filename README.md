@@ -12,6 +12,7 @@ TUI for easily configuring Karabiner-Elements right_command key bindings with su
 - **Action Cycling**: Multiple actions per key cycle in order
 - **Browser Control**: Per-action browser override with tab matching (exact, domain, path, glob)
 - **App Discovery**: Autocomplete from running + installed apps with 30-day cache
+- **Center Mouse on Focus**: Automatically moves mouse to the center of the focused app's window
 - **Safe Updates**: Automatic backups (keeps last 3) before modifying karabiner.json
 
 ## Installation
@@ -84,6 +85,16 @@ The TUI uses **two modes** (like vim):
 
 **Tip**: Status bar (bottom) shows all available shortcuts for current context
 
+### Settings Tab
+
+Switch to the Settings tab (`Tab`) to configure global options:
+
+- **Anchor Key** (`</>`): `Right Command` or `Right Option`
+- **Default Browser** (`</>`): Browser used when a URL action has no browser override
+- **Center Mouse on App Focus** (`space`): When enabled, every app-launch binding moves the mouse to the center of the focused window after the app comes to the foreground. Polls up to 0.5s for the app to become frontmost - no fixed delay.
+
+> **Permission**: The first time Center Mouse fires, macOS will prompt to grant **Accessibility** access to `osascript` (Privacy & Security > Accessibility). This is required to read window positions. Karabiner-Elements itself already needs Accessibility, but `osascript` is a separate binary and needs its own grant.
+
 ### Configuration
 
 Your configuration is stored in `~/.config/karabiner-rcmd-binder/config.toml`:
@@ -91,6 +102,7 @@ Your configuration is stored in `~/.config/karabiner-rcmd-binder/config.toml`:
 ```toml
 [settings]
 default_browser = "firefox"
+center_mouse = true   # optional, omitted when false
 
 [[bindings]]
 key = "t"
@@ -151,6 +163,11 @@ rcmd+g → https://github.com (Chrome)
 rcmd+w → Gmail (Chrome) → GitHub (Firefox) → Linear (Arc) → (cycles)
 ```
 
+**Center Mouse**: Enable in Settings tab, then every app binding warps the cursor to the window center
+```
+rcmd+t → Terminal focuses → mouse moves to center of Terminal window
+```
+
 ## Match Types for URLs
 
 - **exact**: Match full URL exactly
@@ -181,6 +198,9 @@ Nav mode (cyan): shortcuts active. Edit mode (green): text input active. Press E
 **Q: Can I use different browsers for different URLs?**
 Yes! Each URL action has its own browser field (Tab to Browser, `←`/`→` to change).
 
+**Q: What is Center Mouse on App Focus?**
+When enabled in Settings, every app-launch binding automatically moves the mouse to the center of the focused window after the app comes to the foreground. Useful when using keyboard-driven app switching without touching the mouse. Requires Accessibility permission for `osascript` (macOS will prompt once).
+
 ## Troubleshooting
 
 **Keys not working?**
@@ -191,6 +211,12 @@ Yes! Each URL action has its own browser field (Tab to Browser, `←`/`→` to c
 **Browser tab not focusing?**
 - Firefox has limited tab detection, works best with exact URL matches
 - Chrome/Safari/Arc/Edge have full tab search support
+
+**Center Mouse not working?**
+- macOS will prompt for **Accessibility** access the first time - approve it in Privacy & Security > Accessibility
+- Only works for App bindings that have a bundle ID (set via autocomplete). Apps added by name only are skipped.
+- If the app takes more than 0.5s to come to the foreground (cold launch), the poll times out silently
+- Re-pressing the binding while the script is still polling cancels the previous attempt and starts fresh
 
 **Build errors?**
 - Make sure you have the latest Rust: `rustup update`

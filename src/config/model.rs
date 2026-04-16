@@ -203,12 +203,18 @@ impl Binding {
     }
 }
 
+fn is_false(b: &bool) -> bool {
+    !b
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     #[serde(default)]
     pub anchor_key: AnchorKey,
     #[serde(default)]
     pub default_browser: Browser,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub center_mouse: bool,
 }
 
 impl Default for Settings {
@@ -216,6 +222,7 @@ impl Default for Settings {
         Self {
             anchor_key: AnchorKey::default(),
             default_browser: Browser::Firefox,
+            center_mouse: false,
         }
     }
 }

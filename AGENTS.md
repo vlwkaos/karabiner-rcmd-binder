@@ -46,3 +46,7 @@ cargo test        # Run tests
 - `src/app.rs` - State, mode detection, editors
 - `src/config/model.rs` - Domain types (Action, Binding, Browser)
 - `src/karabiner/generator.rs` - JSON rule generation
+
+## Release
+
+release.flow: rust

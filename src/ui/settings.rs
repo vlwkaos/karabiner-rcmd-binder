@@ -1,6 +1,7 @@
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
+    text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
     Frame,
 };
@@ -18,6 +19,7 @@ pub fn draw_settings(frame: &mut Frame, app: &App, area: Rect) {
         .constraints([
             Constraint::Length(3), // Anchor key
             Constraint::Length(3), // Default browser
+            Constraint::Length(3), // Center mouse
             Constraint::Min(0),    // Padding
         ])
         .split(inner);
@@ -57,4 +59,29 @@ pub fn draw_settings(frame: &mut Frame, app: &App, area: Rect) {
     let browser_text = app.config.settings.default_browser.display_name();
     let browser_para = Paragraph::new(browser_text).block(browser_block);
     frame.render_widget(browser_para, chunks[1]);
+
+    // Center mouse toggle
+    let cm_style = if app.settings_field == SettingsField::CenterMouse {
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
+    let cm_value = if app.config.settings.center_mouse { "ON" } else { "OFF" };
+    let cm_value_style = if app.config.settings.center_mouse {
+        Style::default().fg(Color::Green)
+    } else {
+        Style::default().fg(Color::DarkGray)
+    };
+    let cm_block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Center Mouse on App Focus (space) ")
+        .border_style(cm_style);
+    let cm_para = Paragraph::new(Line::from(vec![
+        Span::raw(" "),
+        Span::styled(cm_value, cm_value_style),
+    ]))
+    .block(cm_block);
+    frame.render_widget(cm_para, chunks[2]);
 }

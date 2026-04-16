@@ -13,12 +13,12 @@ pub fn generate_rules(config: &Config, scripts_dir: &str) -> Vec<Value> {
     config
         .bindings
         .iter()
-        .map(|b| generate_binding_rule(b, &config.settings.anchor_key, &config.settings.default_browser, scripts_dir))
+        .map(|b| generate_binding_rule(b, &config.settings.anchor_key, &config.settings.default_browser, scripts_dir, config.settings.center_mouse))
         .collect()
 }
 
 /// Generate a single rule for a binding
-fn generate_binding_rule(binding: &Binding, anchor_key: &AnchorKey, default_browser: &Browser, scripts_dir: &str) -> Value {
+fn generate_binding_rule(binding: &Binding, anchor_key: &AnchorKey, default_browser: &Browser, scripts_dir: &str, center_mouse: bool) -> Value {
     let description = if binding.description.is_empty() {
         format!("{} {}+{}", RULE_PREFIX, anchor_key.display_prefix(), binding.key)
     } else {
@@ -30,10 +30,10 @@ fn generate_binding_rule(binding: &Binding, anchor_key: &AnchorKey, default_brow
 
     let manipulators = if binding.actions.len() <= 1 {
         // Single action - no cycling needed
-        generate_single_action_manipulators(binding, anchor_key, default_browser, scripts_dir)
+        generate_single_action_manipulators(binding, anchor_key, default_browser, scripts_dir, center_mouse)
     } else {
         // Multiple actions - cycling
-        generate_cycling_manipulators(binding, anchor_key, default_browser, scripts_dir)
+        generate_cycling_manipulators(binding, anchor_key, default_browser, scripts_dir, center_mouse)
     };
 
     json!({
@@ -48,6 +48,7 @@ fn generate_single_action_manipulators(
     anchor_key: &AnchorKey,
     default_browser: &Browser,
     scripts_dir: &str,
+    center_mouse: bool,
 ) -> Vec<Value> {
     let from = json!({
         "key_code": binding.key,
@@ -64,6 +65,7 @@ fn generate_single_action_manipulators(
             &binding.actions[0],
             default_browser,
             scripts_dir,
+            center_mouse,
         )]
     };
 
@@ -80,6 +82,7 @@ fn generate_cycling_manipulators(
     anchor_key: &AnchorKey,
     default_browser: &Browser,
     scripts_dir: &str,
+    center_mouse: bool,
 ) -> Vec<Value> {
     let var_name = format!("{}{}_cycle", VAR_PREFIX, binding.key);
     let num_actions = binding.actions.len();
@@ -98,7 +101,7 @@ fn generate_cycling_manipulators(
         .enumerate()
         .map(|(i, action)| {
             let next_value = (i + 1) % num_actions;
-            let action_to = action_to_karabiner(action, default_browser, scripts_dir);
+            let action_to = action_to_karabiner(action, default_browser, scripts_dir, center_mouse);
 
             json!({
                 "type": "basic",
@@ -123,13 +126,21 @@ fn generate_cycling_manipulators(
 }
 
 /// Convert our Action to Karabiner's to event
-fn action_to_karabiner(action: &Action, default_browser: &Browser, scripts_dir: &str) -> Value {
+fn action_to_karabiner(action: &Action, default_browser: &Browser, scripts_dir: &str, center_mouse: bool) -> Value {
     match action {
         Action::App { target, bundle_id } => {
-            // Prefer bundle ID for more reliable launching
             let launch_cmd = match bundle_id {
-                Some(id) if !id.is_empty() => format!("open -b {}", id),
-                _ => format!("open -a '{}'", target), // Fallback for old configs
+                Some(id) if !id.is_empty() => {
+                    if center_mouse {
+                        format!(
+                            "open -b {} && '{}/center-mouse.sh' '{}'",
+                            id, scripts_dir, id
+                        )
+                    } else {
+                        format!("open -b {}", id)
+                    }
+                }
+                _ => format!("open -a '{}'", target), // Fallback: no bundle ID, skip center_mouse
             };
             json!({
                 "shell_command": launch_cmd
@@ -271,7 +282,7 @@ mod tests {
             }],
         };
 
-        let rule = generate_binding_rule(&binding, &AnchorKey::RightCommand, &Browser::Firefox, "/scripts");
+        let rule = generate_binding_rule(&binding, &AnchorKey::RightCommand, &Browser::Firefox, "/scripts", false);
         assert!(rule["description"].as_str().unwrap().contains("[rcmdb]"));
         assert_eq!(rule["manipulators"].as_array().unwrap().len(), 1);
     }
@@ -293,7 +304,7 @@ mod tests {
             ],
         };
 
-        let rule = generate_binding_rule(&binding, &AnchorKey::RightCommand, &Browser::Firefox, "/scripts");
+        let rule = generate_binding_rule(&binding, &AnchorKey::RightCommand, &Browser::Firefox, "/scripts", false);
         let manipulators = rule["manipulators"].as_array().unwrap();
         assert_eq!(manipulators.len(), 2);
 
