@@ -16,3 +16,11 @@ GPG-PRIVATE-KEY-BACKUP.asc
 GPG-PUBLIC-KEY.asc
 rcmdb-0.3.0-darwin-arm64.tar.gz.asc
 rcmdb-0.4.0-darwin-arm64.tar.gz.asc
+rcmdb-0.4.1-darwin-arm64.tar.gz.asc
+rcmdb-0.3.0-darwin-arm64.tar.gz
+rcmdb-0.4.0-darwin-arm64.tar.gz
+rcmdb-0.4.1-darwin-arm64.tar.gz
+*.bottle.tar.gz
+rcmdb-0.3.0-darwin-arm64.tar.gz.sha256
+rcmdb-0.4.0-darwin-arm64.tar.gz.sha256
+rcmdb-0.4.1-darwin-arm64.tar.gz.sha256
