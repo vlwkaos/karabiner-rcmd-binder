@@ -65,7 +65,7 @@ mod tests {
         // Try to resolve Safari (should be installed on macOS)
         match try_resolve_bundle_id("Safari") {
             Ok(bundle_id) => {
-                assert!(bundle_id.contains("safari"));
+                assert!(bundle_id.to_lowercase().contains("safari"));
                 println!("Safari bundle ID: {}", bundle_id);
             }
             Err(e) => {
