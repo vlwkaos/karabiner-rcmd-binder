@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use crate::config::persistence::ensure_scripts_dir;
 
 /// Embedded url-focus.sh script
-const URL_FOCUS_SCRIPT: &str = r#"#!/bin/bash
+const URL_FOCUS_SCRIPT: &str = r#"#!/usr/bin/env bash
 # url-focus.sh - Focus or open URL in browser with matching logic
 # Usage: url-focus.sh <url> <match_type> <browser>
 # match_type: exact | domain | path | glob
@@ -220,7 +220,7 @@ esac
 "#;
 
 /// Embedded center-mouse.sh script
-const CENTER_MOUSE_SCRIPT: &str = r#"#!/bin/bash
+const CENTER_MOUSE_SCRIPT: &str = r#"#!/usr/bin/env bash
 # center-mouse.sh <bundle_id>
 # Polls until target app is frontmost (up to 0.5s), then centers mouse on its window.
 # Kills any prior instance for the same bundle_id (cancel + restart semantics).
@@ -307,4 +307,43 @@ pub fn install_scripts() -> Result<PathBuf> {
     fs::set_permissions(&center_mouse_path, perms)?;
 
     Ok(scripts_dir)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_scripts_use_env_bash_shebang() {
+        // Must use #!/usr/bin/env bash for portability — #!/bin/bash breaks on NixOS, some Linux distros
+        assert!(
+            URL_FOCUS_SCRIPT.starts_with("#!/usr/bin/env bash"),
+            "url-focus.sh must start with #!/usr/bin/env bash"
+        );
+        assert!(
+            CENTER_MOUSE_SCRIPT.starts_with("#!/usr/bin/env bash"),
+            "center-mouse.sh must start with #!/usr/bin/env bash"
+        );
+        assert!(
+            !URL_FOCUS_SCRIPT.contains("#!/bin/bash"),
+            "url-focus.sh must not contain #!/bin/bash"
+        );
+        assert!(
+            !CENTER_MOUSE_SCRIPT.contains("#!/bin/bash"),
+            "center-mouse.sh must not contain #!/bin/bash"
+        );
+    }
+
+    #[test]
+    fn test_scripts_no_baked_absolute_paths() {
+        // Scripts must not embed save-time user paths — use $HOME or relative refs only
+        assert!(
+            !URL_FOCUS_SCRIPT.contains("/Users/"),
+            "url-focus.sh must not embed absolute user path"
+        );
+        assert!(
+            !CENTER_MOUSE_SCRIPT.contains("/Users/"),
+            "center-mouse.sh must not embed absolute user path"
+        );
+    }
 }

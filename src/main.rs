@@ -572,10 +572,10 @@ fn save_to_karabiner(app: &mut App) -> Result<()> {
     save_config(&app.config)?;
 
     // Install scripts
-    let scripts_dir = install_scripts()?;
+    install_scripts()?;
 
     // Apply to karabiner
-    apply_to_karabiner(&app.config, &scripts_dir.to_string_lossy())?;
+    apply_to_karabiner(&app.config)?;
 
     // Show status with warning count if any
     if warning_count > 0 {

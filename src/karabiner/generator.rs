@@ -7,18 +7,20 @@ use crate::karabiner::backup::{create_backup, karabiner_config_path};
 
 const RULE_PREFIX: &str = "[rcmdb]";
 const VAR_PREFIX: &str = "rcmdb_";
+// ^ Runtime path: $HOME expands when karabiner executes the shell command, not at save time.
+const SCRIPTS_RUNTIME_DIR: &str = "$HOME/.config/karabiner-rcmd-binder/scripts";
 
 /// Generate Karabiner complex_modifications rules from our config
-pub fn generate_rules(config: &Config, scripts_dir: &str) -> Vec<Value> {
+pub fn generate_rules(config: &Config) -> Vec<Value> {
     config
         .bindings
         .iter()
-        .map(|b| generate_binding_rule(b, &config.settings.anchor_key, &config.settings.default_browser, scripts_dir, config.settings.center_mouse))
+        .map(|b| generate_binding_rule(b, &config.settings.anchor_key, &config.settings.default_browser, config.settings.center_mouse))
         .collect()
 }
 
 /// Generate a single rule for a binding
-fn generate_binding_rule(binding: &Binding, anchor_key: &AnchorKey, default_browser: &Browser, scripts_dir: &str, center_mouse: bool) -> Value {
+fn generate_binding_rule(binding: &Binding, anchor_key: &AnchorKey, default_browser: &Browser, center_mouse: bool) -> Value {
     let description = if binding.description.is_empty() {
         format!("{} {}+{}", RULE_PREFIX, anchor_key.display_prefix(), binding.key)
     } else {
@@ -30,10 +32,10 @@ fn generate_binding_rule(binding: &Binding, anchor_key: &AnchorKey, default_brow
 
     let manipulators = if binding.actions.len() <= 1 {
         // Single action - no cycling needed
-        generate_single_action_manipulators(binding, anchor_key, default_browser, scripts_dir, center_mouse)
+        generate_single_action_manipulators(binding, anchor_key, default_browser, center_mouse)
     } else {
         // Multiple actions - cycling
-        generate_cycling_manipulators(binding, anchor_key, default_browser, scripts_dir, center_mouse)
+        generate_cycling_manipulators(binding, anchor_key, default_browser, center_mouse)
     };
 
     json!({
@@ -47,7 +49,6 @@ fn generate_single_action_manipulators(
     binding: &Binding,
     anchor_key: &AnchorKey,
     default_browser: &Browser,
-    scripts_dir: &str,
     center_mouse: bool,
 ) -> Vec<Value> {
     let from = json!({
@@ -61,12 +62,7 @@ fn generate_single_action_manipulators(
     let to = if binding.actions.is_empty() {
         vec![]
     } else {
-        vec![action_to_karabiner(
-            &binding.actions[0],
-            default_browser,
-            scripts_dir,
-            center_mouse,
-        )]
+        vec![action_to_karabiner(&binding.actions[0], default_browser, center_mouse)]
     };
 
     vec![json!({
@@ -81,7 +77,6 @@ fn generate_cycling_manipulators(
     binding: &Binding,
     anchor_key: &AnchorKey,
     default_browser: &Browser,
-    scripts_dir: &str,
     center_mouse: bool,
 ) -> Vec<Value> {
     let var_name = format!("{}{}_cycle", VAR_PREFIX, binding.key);
@@ -101,7 +96,7 @@ fn generate_cycling_manipulators(
         .enumerate()
         .map(|(i, action)| {
             let next_value = (i + 1) % num_actions;
-            let action_to = action_to_karabiner(action, default_browser, scripts_dir, center_mouse);
+            let action_to = action_to_karabiner(action, default_browser, center_mouse);
 
             json!({
                 "type": "basic",
@@ -126,15 +121,16 @@ fn generate_cycling_manipulators(
 }
 
 /// Convert our Action to Karabiner's to event
-fn action_to_karabiner(action: &Action, default_browser: &Browser, scripts_dir: &str, center_mouse: bool) -> Value {
+fn action_to_karabiner(action: &Action, default_browser: &Browser, center_mouse: bool) -> Value {
     match action {
         Action::App { target, bundle_id } => {
             let launch_cmd = match bundle_id {
                 Some(id) if !id.is_empty() => {
                     if center_mouse {
+                        // $HOME expands at shell runtime — not tied to the save-time user path
                         format!(
-                            "open -b {} && '{}/center-mouse.sh' '{}'",
-                            id, scripts_dir, id
+                            "open -b {} && \"{}/center-mouse.sh\" '{}'",
+                            id, SCRIPTS_RUNTIME_DIR, id
                         )
                     } else {
                         format!("open -b {}", id)
@@ -152,11 +148,10 @@ fn action_to_karabiner(action: &Action, default_browser: &Browser, scripts_dir: 
             browser,
         } => {
             let browser = browser.as_ref().unwrap_or(default_browser);
-            let script_path = format!("{}/url-focus.sh", scripts_dir);
             json!({
                 "shell_command": format!(
-                    "'{}' '{}' '{}' '{}'",
-                    script_path,
+                    "\"{}/url-focus.sh\" '{}' '{}' '{}'",
+                    SCRIPTS_RUNTIME_DIR,
                     target,
                     match_type.as_str(),
                     browser.as_str()
@@ -173,7 +168,7 @@ fn action_to_karabiner(action: &Action, default_browser: &Browser, scripts_dir: 
 
 /// Apply our rules to karabiner.json
 /// This preserves existing rules and only replaces our [rcmdb] rules
-pub fn apply_to_karabiner(config: &Config, scripts_dir: &str) -> Result<()> {
+pub fn apply_to_karabiner(config: &Config) -> Result<()> {
     let config_path = karabiner_config_path()?;
 
     // Load existing karabiner.json or create default
@@ -247,7 +242,7 @@ pub fn apply_to_karabiner(config: &Config, scripts_dir: &str) -> Result<()> {
     });
 
     // Add our new rules
-    let our_rules = generate_rules(config, scripts_dir);
+    let our_rules = generate_rules(config);
     for rule in our_rules {
         rules.push(rule);
     }
@@ -282,7 +277,7 @@ mod tests {
             }],
         };
 
-        let rule = generate_binding_rule(&binding, &AnchorKey::RightCommand, &Browser::Firefox, "/scripts", false);
+        let rule = generate_binding_rule(&binding, &AnchorKey::RightCommand, &Browser::Firefox, false);
         assert!(rule["description"].as_str().unwrap().contains("[rcmdb]"));
         assert_eq!(rule["manipulators"].as_array().unwrap().len(), 1);
     }
@@ -304,12 +299,45 @@ mod tests {
             ],
         };
 
-        let rule = generate_binding_rule(&binding, &AnchorKey::RightCommand, &Browser::Firefox, "/scripts", false);
+        let rule = generate_binding_rule(&binding, &AnchorKey::RightCommand, &Browser::Firefox, false);
         let manipulators = rule["manipulators"].as_array().unwrap();
         assert_eq!(manipulators.len(), 2);
 
         // Check cycling variables
         assert!(manipulators[0]["to"][1]["set_variable"]["value"] == 1);
         assert!(manipulators[1]["to"][1]["set_variable"]["value"] == 0);
+    }
+
+    #[test]
+    fn test_app_action_uses_runtime_home_path() {
+        // The generated shell_command must embed the literal "$HOME" string so the shell
+        // expands it at Karabiner runtime, not the absolute path baked at save time.
+        let action = Action::App {
+            target: "Terminal".to_string(),
+            bundle_id: Some("com.apple.Terminal".to_string()),
+        };
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, true);
+        let shell_cmd = cmd["shell_command"].as_str().unwrap();
+
+        assert!(shell_cmd.contains("$HOME"), "must contain literal $HOME, not an absolute path");
+        assert!(!shell_cmd.contains("/Users/"), "must not bake absolute user path at save time");
+        assert!(!shell_cmd.contains("/home/"), "must not bake absolute user path at save time");
+        // $HOME must be inside double-quotes so the shell expands it
+        assert!(shell_cmd.contains("\"$HOME"), "must double-quote $HOME for shell expansion");
+    }
+
+    #[test]
+    fn test_url_action_uses_runtime_home_path() {
+        let action = Action::Url {
+            target: "https://example.com".to_string(),
+            match_type: crate::config::UrlMatchType::Domain,
+            browser: None,
+        };
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, false);
+        let shell_cmd = cmd["shell_command"].as_str().unwrap();
+
+        assert!(shell_cmd.contains("$HOME"), "must contain literal $HOME, not an absolute path");
+        assert!(!shell_cmd.contains("/Users/"), "must not bake absolute user path at save time");
+        assert!(shell_cmd.contains("\"$HOME"), "must double-quote $HOME for shell expansion");
     }
 }
