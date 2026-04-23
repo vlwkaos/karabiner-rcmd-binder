@@ -1,3 +1,13 @@
+## [0.5.1] - 2026-04-24
+
+### Bug Fixes
+
+- Fix script paths baked as absolute user paths at config-save time; now embed `$HOME` so the shell expands it at Karabiner runtime ([`7e4efa0`](https://github.com/vlwkaos/karabiner-rcmd-binder/commit/7e4efa0c9cfd2e7513ee7cddab0edf201bea9a44))
+- Fix `#!/bin/bash` shebangs in embedded scripts to `#!/usr/bin/env bash` for portability ([`7e4efa0`](https://github.com/vlwkaos/karabiner-rcmd-binder/commit/7e4efa0c9cfd2e7513ee7cddab0edf201bea9a44))
+- Fix case-sensitive bundle ID assertion in validation test ([`77d11e1`](https://github.com/vlwkaos/karabiner-rcmd-binder/commit/77d11e15ec186496337c4e52d07cd60a3feed668))
+
+---
+
 ## [0.5.0] - 2026-04-16
 
 ### Features
