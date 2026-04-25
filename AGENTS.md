@@ -50,3 +50,13 @@ cargo test        # Run tests
 ## Release
 
 release.flow: rust
+
+## good-to-go
+
+Project-specific axes (extend defaults, do not replace):
+
+| Axis | What to check |
+|------|---------------|
+| **README config example** | `README.md` config block shows current `center_mouse` values (`"off"` \| `"always"` \| `"multi_monitor_only"`); update when enum variants change |
+| **Embedded script args** | When `CenterMouseMode::as_str()` values change, verify they match the bash `case`/`if` strings inside `CENTER_MOUSE_SCRIPT` in `src/scripts/mod.rs` |
+| **Serde legacy compat** | `CenterMouseMode` deserializer accepts both old bool and new string — must keep `visit_bool` if removing a variant that maps to an old bool value |

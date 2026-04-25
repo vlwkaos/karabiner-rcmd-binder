@@ -221,11 +221,13 @@ esac
 
 /// Embedded center-mouse.sh script
 const CENTER_MOUSE_SCRIPT: &str = r#"#!/usr/bin/env bash
-# center-mouse.sh <bundle_id>
+# center-mouse.sh <bundle_id> [mode]
+# mode: always (default) | multi_monitor_only
 # Polls until target app is frontmost (up to 0.5s), then centers mouse on its window.
 # Kills any prior instance for the same bundle_id (cancel + restart semantics).
 
 BUNDLE_ID="$1"
+MODE="${2:-always}"
 
 if [ -z "$BUNDLE_ID" ]; then
     exit 1
@@ -252,11 +254,18 @@ fi
 printf '%d' $$ > "$LOCK_FILE"
 trap 'rm -f "$LOCK_FILE"' EXIT
 
-osascript -l JavaScript - "$BUNDLE_ID" << 'JSEOF'
+osascript -l JavaScript - "$BUNDLE_ID" "$MODE" << 'JSEOF'
 ObjC.import('CoreGraphics');
+ObjC.import('AppKit');
 
 function run(argv) {
     var targetBundle = argv[0];
+    var mode = argv[1] || 'always';
+
+    if (mode === 'multi_monitor_only' && $.NSScreen.screens.count <= 1) {
+        return;
+    }
+
     var timeout = 0.5;
     var interval = 0.05;
     var elapsed = 0;

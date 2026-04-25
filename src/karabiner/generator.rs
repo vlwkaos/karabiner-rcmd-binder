@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use serde_json::{json, Value};
 use std::fs;
 
-use crate::config::{Action, AnchorKey, Binding, Browser, Config};
+use crate::config::{Action, AnchorKey, Binding, Browser, CenterMouseMode, Config};
 use crate::karabiner::backup::{create_backup, karabiner_config_path};
 
 const RULE_PREFIX: &str = "[rcmdb]";
@@ -20,7 +20,7 @@ pub fn generate_rules(config: &Config) -> Vec<Value> {
 }
 
 /// Generate a single rule for a binding
-fn generate_binding_rule(binding: &Binding, anchor_key: &AnchorKey, default_browser: &Browser, center_mouse: bool) -> Value {
+fn generate_binding_rule(binding: &Binding, anchor_key: &AnchorKey, default_browser: &Browser, center_mouse: CenterMouseMode) -> Value {
     let description = if binding.description.is_empty() {
         format!("{} {}+{}", RULE_PREFIX, anchor_key.display_prefix(), binding.key)
     } else {
@@ -49,7 +49,7 @@ fn generate_single_action_manipulators(
     binding: &Binding,
     anchor_key: &AnchorKey,
     default_browser: &Browser,
-    center_mouse: bool,
+    center_mouse: CenterMouseMode,
 ) -> Vec<Value> {
     let from = json!({
         "key_code": binding.key,
@@ -77,7 +77,7 @@ fn generate_cycling_manipulators(
     binding: &Binding,
     anchor_key: &AnchorKey,
     default_browser: &Browser,
-    center_mouse: bool,
+    center_mouse: CenterMouseMode,
 ) -> Vec<Value> {
     let var_name = format!("{}{}_cycle", VAR_PREFIX, binding.key);
     let num_actions = binding.actions.len();
@@ -121,21 +121,18 @@ fn generate_cycling_manipulators(
 }
 
 /// Convert our Action to Karabiner's to event
-fn action_to_karabiner(action: &Action, default_browser: &Browser, center_mouse: bool) -> Value {
+fn action_to_karabiner(action: &Action, default_browser: &Browser, center_mouse: CenterMouseMode) -> Value {
     match action {
         Action::App { target, bundle_id } => {
             let launch_cmd = match bundle_id {
-                Some(id) if !id.is_empty() => {
-                    if center_mouse {
-                        // $HOME expands at shell runtime — not tied to the save-time user path
-                        format!(
-                            "open -b {} && \"{}/center-mouse.sh\" '{}'",
-                            id, SCRIPTS_RUNTIME_DIR, id
-                        )
-                    } else {
-                        format!("open -b {}", id)
-                    }
-                }
+                Some(id) if !id.is_empty() => match center_mouse {
+                    CenterMouseMode::Off => format!("open -b {}", id),
+                    // $HOME expands at shell runtime — not tied to the save-time user path
+                    mode => format!(
+                        "open -b {} && \"{}/center-mouse.sh\" '{}' '{}'",
+                        id, SCRIPTS_RUNTIME_DIR, id, mode.as_str()
+                    ),
+                },
                 _ => format!("open -a '{}'", target), // Fallback: no bundle ID, skip center_mouse
             };
             json!({
@@ -277,7 +274,7 @@ mod tests {
             }],
         };
 
-        let rule = generate_binding_rule(&binding, &AnchorKey::RightCommand, &Browser::Firefox, false);
+        let rule = generate_binding_rule(&binding, &AnchorKey::RightCommand, &Browser::Firefox, CenterMouseMode::Off);
         assert!(rule["description"].as_str().unwrap().contains("[rcmdb]"));
         assert_eq!(rule["manipulators"].as_array().unwrap().len(), 1);
     }
@@ -299,7 +296,7 @@ mod tests {
             ],
         };
 
-        let rule = generate_binding_rule(&binding, &AnchorKey::RightCommand, &Browser::Firefox, false);
+        let rule = generate_binding_rule(&binding, &AnchorKey::RightCommand, &Browser::Firefox, CenterMouseMode::Off);
         let manipulators = rule["manipulators"].as_array().unwrap();
         assert_eq!(manipulators.len(), 2);
 
@@ -316,7 +313,7 @@ mod tests {
             target: "Terminal".to_string(),
             bundle_id: Some("com.apple.Terminal".to_string()),
         };
-        let cmd = action_to_karabiner(&action, &Browser::Firefox, true);
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::Always);
         let shell_cmd = cmd["shell_command"].as_str().unwrap();
 
         assert!(shell_cmd.contains("$HOME"), "must contain literal $HOME, not an absolute path");
@@ -324,6 +321,19 @@ mod tests {
         assert!(!shell_cmd.contains("/home/"), "must not bake absolute user path at save time");
         // $HOME must be inside double-quotes so the shell expands it
         assert!(shell_cmd.contains("\"$HOME"), "must double-quote $HOME for shell expansion");
+        assert!(shell_cmd.contains("'always'"), "always mode must pass mode arg to script");
+    }
+
+    #[test]
+    fn test_multi_monitor_only_passes_mode_arg() {
+        let action = Action::App {
+            target: "Terminal".to_string(),
+            bundle_id: Some("com.apple.Terminal".to_string()),
+        };
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::MultiMonitorOnly);
+        let shell_cmd = cmd["shell_command"].as_str().unwrap();
+        assert!(shell_cmd.contains("center-mouse.sh"), "must invoke center-mouse.sh");
+        assert!(shell_cmd.contains("'multi_monitor_only'"), "must pass multi_monitor_only mode arg");
     }
 
     #[test]
@@ -333,7 +343,7 @@ mod tests {
             match_type: crate::config::UrlMatchType::Domain,
             browser: None,
         };
-        let cmd = action_to_karabiner(&action, &Browser::Firefox, false);
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::Off);
         let shell_cmd = cmd["shell_command"].as_str().unwrap();
 
         assert!(shell_cmd.contains("$HOME"), "must contain literal $HOME, not an absolute path");

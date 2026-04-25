@@ -203,8 +203,75 @@ impl Binding {
     }
 }
 
-fn is_false(b: &bool) -> bool {
-    !b
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub enum CenterMouseMode {
+    #[default]
+    Off,
+    Always,
+    MultiMonitorOnly,
+}
+
+impl CenterMouseMode {
+    pub fn is_off(&self) -> bool {
+        matches!(self, CenterMouseMode::Off)
+    }
+
+    pub fn cycle(&self) -> Self {
+        match self {
+            CenterMouseMode::Off => CenterMouseMode::Always,
+            CenterMouseMode::Always => CenterMouseMode::MultiMonitorOnly,
+            CenterMouseMode::MultiMonitorOnly => CenterMouseMode::Off,
+        }
+    }
+
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            CenterMouseMode::Off => "OFF",
+            CenterMouseMode::Always => "ON",
+            CenterMouseMode::MultiMonitorOnly => "MULTI ONLY",
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            CenterMouseMode::Off => "off",
+            CenterMouseMode::Always => "always",
+            CenterMouseMode::MultiMonitorOnly => "multi_monitor_only",
+        }
+    }
+}
+
+impl serde::Serialize for CenterMouseMode {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for CenterMouseMode {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = CenterMouseMode;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(f, "bool or string (off|always|multi_monitor_only)")
+            }
+            fn visit_bool<E: serde::de::Error>(self, v: bool) -> Result<Self::Value, E> {
+                Ok(if v { CenterMouseMode::Always } else { CenterMouseMode::Off })
+            }
+            fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                match v {
+                    "off" => Ok(CenterMouseMode::Off),
+                    "always" => Ok(CenterMouseMode::Always),
+                    "multi_monitor_only" => Ok(CenterMouseMode::MultiMonitorOnly),
+                    _ => Err(serde::de::Error::unknown_variant(
+                        v,
+                        &["off", "always", "multi_monitor_only"],
+                    )),
+                }
+            }
+        }
+        d.deserialize_any(Visitor)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -213,8 +280,8 @@ pub struct Settings {
     pub anchor_key: AnchorKey,
     #[serde(default)]
     pub default_browser: Browser,
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub center_mouse: bool,
+    #[serde(default, skip_serializing_if = "CenterMouseMode::is_off")]
+    pub center_mouse: CenterMouseMode,
 }
 
 impl Default for Settings {
@@ -222,7 +289,7 @@ impl Default for Settings {
         Self {
             anchor_key: AnchorKey::default(),
             default_browser: Browser::Firefox,
-            center_mouse: false,
+            center_mouse: CenterMouseMode::Off,
         }
     }
 }
@@ -244,5 +311,48 @@ impl Default for Config {
             bindings: Vec::new(),
             cached_apps: Vec::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_center_mouse_mode_serde_roundtrip() {
+        let modes = [
+            (CenterMouseMode::Off, "\"off\""),
+            (CenterMouseMode::Always, "\"always\""),
+            (CenterMouseMode::MultiMonitorOnly, "\"multi_monitor_only\""),
+        ];
+        for (mode, expected_json) in &modes {
+            let serialized = serde_json::to_string(mode).unwrap();
+            assert_eq!(&serialized, expected_json);
+            let deserialized: CenterMouseMode = serde_json::from_str(&serialized).unwrap();
+            assert_eq!(&deserialized, mode);
+        }
+    }
+
+    #[test]
+    fn test_center_mouse_mode_deserialize_legacy_bool() {
+        let from_true: CenterMouseMode = serde_json::from_str("true").unwrap();
+        assert_eq!(from_true, CenterMouseMode::Always);
+
+        let from_false: CenterMouseMode = serde_json::from_str("false").unwrap();
+        assert_eq!(from_false, CenterMouseMode::Off);
+    }
+
+    #[test]
+    fn test_settings_skips_off_on_serialize() {
+        let settings = Settings::default();
+        let toml = toml::to_string(&settings).unwrap();
+        assert!(!toml.contains("center_mouse"), "Off should be omitted from serialized output");
+    }
+
+    #[test]
+    fn test_settings_deserialize_legacy_center_mouse_true() {
+        let toml = "center_mouse = true\n";
+        let settings: Settings = toml::from_str(toml).unwrap();
+        assert_eq!(settings.center_mouse, CenterMouseMode::Always);
     }
 }

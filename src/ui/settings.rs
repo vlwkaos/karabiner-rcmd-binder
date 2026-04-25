@@ -7,6 +7,7 @@ use ratatui::{
 };
 
 use crate::app::{App, SettingsField};
+use crate::config::CenterMouseMode;
 
 pub fn draw_settings(frame: &mut Frame, app: &App, area: Rect) {
     let block = Block::default().borders(Borders::ALL).title(" Settings ");
@@ -68,11 +69,11 @@ pub fn draw_settings(frame: &mut Frame, app: &App, area: Rect) {
     } else {
         Style::default()
     };
-    let cm_value = if app.config.settings.center_mouse { "ON" } else { "OFF" };
-    let cm_value_style = if app.config.settings.center_mouse {
-        Style::default().fg(Color::Green)
-    } else {
-        Style::default().fg(Color::DarkGray)
+    let cm_value = app.config.settings.center_mouse.display_name();
+    let cm_value_style = match app.config.settings.center_mouse {
+        CenterMouseMode::Off => Style::default().fg(Color::DarkGray),
+        CenterMouseMode::Always => Style::default().fg(Color::Green),
+        CenterMouseMode::MultiMonitorOnly => Style::default().fg(Color::Cyan),
     };
     let cm_block = Block::default()
         .borders(Borders::ALL)

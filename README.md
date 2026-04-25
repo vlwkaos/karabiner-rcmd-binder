@@ -102,7 +102,7 @@ Your configuration is stored in `~/.config/karabiner-rcmd-binder/config.toml`:
 ```toml
 [settings]
 default_browser = "firefox"
-center_mouse = true   # optional, omitted when false
+center_mouse = "always"   # off (default, omitted) | always | multi_monitor_only
 
 [[bindings]]
 key = "t"

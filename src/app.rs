@@ -743,7 +743,7 @@ impl App {
     }
 
     pub fn toggle_center_mouse(&mut self) {
-        self.config.settings.center_mouse = !self.config.settings.center_mouse;
+        self.config.settings.center_mouse = self.config.settings.center_mouse.cycle();
     }
 
     pub fn next_settings_field(&mut self) {
