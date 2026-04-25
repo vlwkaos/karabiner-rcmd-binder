@@ -1,3 +1,15 @@
+## [0.5.2] - 2026-04-25
+
+### Features
+
+- Add `multi_monitor_only` mode for Center Mouse: when selected, the cursor-warp runs only when multiple displays are connected; no-ops silently on single-monitor setups. Settings now cycle Off → ON → MULTI ONLY via `space`.
+
+### Migration
+
+`center_mouse` in `config.toml` changes from a boolean to a string enum (`"off"` | `"always"` | `"multi_monitor_only"`). Existing `center_mouse = true` configs are automatically migrated to `"always"` on next load.
+
+---
+
 ## [0.5.1] - 2026-04-24
 
 ### Bug Fixes
