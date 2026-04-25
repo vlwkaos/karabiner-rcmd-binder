@@ -2,7 +2,7 @@
 set -e
 
 VERSION="$1"
-TAP_DIR="../homebrew-tap"
+TAP_DIR="${2:-../homebrew-tap}"
 
 if [ -z "$VERSION" ]; then
     echo "Usage: ./scripts/update-formula.sh VERSION"
