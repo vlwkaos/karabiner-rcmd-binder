@@ -4,6 +4,10 @@
 
 - Add per-App-action **window cycling** (`cycle_windows`): when a binding has a single App action with a bundle ID, the first press focuses/launches the app and repeat presses rotate through its windows (wrapping). Coexists with multi-action cycling, which continues to own keys bound to more than one action. Toggle it in the Action Editor (`←`/`→`/`space`); requires the same Accessibility permission as Center Mouse.
 
+### Security
+
+- Shell-escape all user-supplied fields (`bundle_id`, app/URL `target`) interpolated into generated Karabiner `shell_command` strings, using POSIX single-quote escaping. Also quotes the previously bare `open -b <bundle_id>` argument. Prevents a crafted config or discovered app name containing shell metacharacters from breaking out of the generated command.
+
 ## [0.5.2] - 2026-04-25
 
 ### Features

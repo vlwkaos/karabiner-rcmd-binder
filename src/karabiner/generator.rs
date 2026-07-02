@@ -122,6 +122,13 @@ fn generate_cycling_manipulators(
         .collect()
 }
 
+/// POSIX-safe single-quote a value for embedding in a generated shell command.
+/// Wraps in single quotes and rewrites any embedded `'` as `'\''` so no metachar
+/// (space, `;`, `$`, `` ` ``, glob) in a user-config or discovered field can break out.
+fn sh_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
 /// Convert our Action to Karabiner's to event.
 /// `allow_window_cycle` is true only when this is the binding's sole action; multi-action
 /// cycling owns the keypress so it always passes false.
@@ -132,20 +139,21 @@ fn action_to_karabiner(action: &Action, default_browser: &Browser, center_mouse:
                 Some(id) if !id.is_empty() => {
                     // Window cycling: script focuses/launches on first press, raises next window after.
                     let base = if allow_window_cycle && *cycle_windows {
-                        format!("\"{}/cycle-window.sh\" '{}'", SCRIPTS_RUNTIME_DIR, id)
+                        format!("\"{}/cycle-window.sh\" {}", SCRIPTS_RUNTIME_DIR, sh_quote(id))
                     } else {
-                        format!("open -b {}", id)
+                        format!("open -b {}", sh_quote(id))
                     };
                     match center_mouse {
                         CenterMouseMode::Off => base,
-                        // $HOME expands at shell runtime — not tied to the save-time user path
+                        // $HOME expands at shell runtime — not tied to the save-time user path.
+                        // mode is an enum-derived constant, so it needs no escaping.
                         mode => format!(
-                            "{} && \"{}/center-mouse.sh\" '{}' '{}'",
-                            base, SCRIPTS_RUNTIME_DIR, id, mode.as_str()
+                            "{} && \"{}/center-mouse.sh\" {} '{}'",
+                            base, SCRIPTS_RUNTIME_DIR, sh_quote(id), mode.as_str()
                         ),
                     }
                 }
-                _ => format!("open -a '{}'", target), // Fallback: no bundle ID, skip cycle/center_mouse
+                _ => format!("open -a {}", sh_quote(target)), // Fallback: no bundle ID, skip cycle/center_mouse
             };
             json!({
                 "shell_command": launch_cmd
@@ -157,11 +165,12 @@ fn action_to_karabiner(action: &Action, default_browser: &Browser, center_mouse:
             browser,
         } => {
             let browser = browser.as_ref().unwrap_or(default_browser);
+            // match_type/browser are enum-derived constants; only target is user-supplied.
             json!({
                 "shell_command": format!(
-                    "\"{}/url-focus.sh\" '{}' '{}' '{}'",
+                    "\"{}/url-focus.sh\" {} '{}' '{}'",
                     SCRIPTS_RUNTIME_DIR,
-                    target,
+                    sh_quote(target),
                     match_type.as_str(),
                     browser.as_str()
                 )
@@ -379,7 +388,7 @@ mod tests {
         };
         let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::Off, false);
         let shell_cmd = cmd["shell_command"].as_str().unwrap();
-        assert_eq!(shell_cmd, "open -b com.apple.Terminal");
+        assert_eq!(shell_cmd, "open -b 'com.apple.Terminal'");
     }
 
     #[test]
@@ -391,7 +400,7 @@ mod tests {
         };
         let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::Off, true);
         let shell_cmd = cmd["shell_command"].as_str().unwrap();
-        assert_eq!(shell_cmd, "open -b com.apple.Terminal");
+        assert_eq!(shell_cmd, "open -b 'com.apple.Terminal'");
     }
 
     #[test]
@@ -554,5 +563,75 @@ mod tests {
         };
         let rule = generate_binding_rule(&binding, &AnchorKey::RightCommand, &Browser::Firefox, CenterMouseMode::Off);
         assert!(!rule["manipulators"][0]["to"][0]["shell_command"].as_str().unwrap().contains("open -b"));
+    }
+
+    #[test]
+    fn given_app_bundle_with_metachars_when_open_b_then_value_is_single_quoted() {
+        let action = Action::App {
+            target: "Evil".to_string(),
+            bundle_id: Some("com.evil; rm -rf ~".to_string()),
+            cycle_windows: false,
+        };
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::Off, true);
+        assert!(cmd["shell_command"]
+            .as_str()
+            .unwrap()
+            .contains("'com.evil; rm -rf ~'"));
+    }
+
+    #[test]
+    fn given_app_bundle_with_metachars_when_cycle_window_then_value_is_single_quoted() {
+        let action = Action::App {
+            target: "Evil".to_string(),
+            bundle_id: Some("com.evil; rm -rf ~".to_string()),
+            cycle_windows: true,
+        };
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::Off, true);
+        assert!(cmd["shell_command"]
+            .as_str()
+            .unwrap()
+            .contains("'com.evil; rm -rf ~'"));
+    }
+
+    #[test]
+    fn given_app_bundle_with_single_quote_when_open_b_then_quote_is_posix_escaped() {
+        let action = Action::App {
+            target: "AB".to_string(),
+            bundle_id: Some("com.a'b".to_string()),
+            cycle_windows: false,
+        };
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::Off, true);
+        assert!(cmd["shell_command"]
+            .as_str()
+            .unwrap()
+            .contains("'com.a'\\''b'"));
+    }
+
+    #[test]
+    fn given_app_no_bundle_and_target_with_single_quote_when_open_a_then_quote_is_posix_escaped() {
+        let action = Action::App {
+            target: "My'App".to_string(),
+            bundle_id: None,
+            cycle_windows: false,
+        };
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::Off, true);
+        assert!(cmd["shell_command"]
+            .as_str()
+            .unwrap()
+            .contains("'My'\\''App'"));
+    }
+
+    #[test]
+    fn given_url_target_with_single_quote_when_generated_then_target_is_posix_escaped() {
+        let action = Action::Url {
+            target: "https://x.com/'a".to_string(),
+            match_type: crate::config::UrlMatchType::Domain,
+            browser: None,
+        };
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::Off, true);
+        assert!(cmd["shell_command"]
+            .as_str()
+            .unwrap()
+            .contains("'https://x.com/'\\''a'"));
     }
 }
