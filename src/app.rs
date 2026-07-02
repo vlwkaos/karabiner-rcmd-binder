@@ -27,6 +27,7 @@ pub enum EditorField {
 pub enum ActionEditorField {
     Type,
     Target,
+    CycleWindows,
     MatchType,
     Browser,
 }
@@ -42,6 +43,7 @@ pub struct ActionEditor {
     pub action_type: ActionType,
     pub target: String,
     pub bundle_id: Option<String>, // For App actions
+    pub cycle_windows: bool,       // For App actions: cycle windows on repeat press
     pub match_type: UrlMatchType,
     pub browser: Option<Browser>,
     pub field: ActionEditorField,
@@ -87,6 +89,7 @@ impl ActionEditor {
             action_type: ActionType::App,
             target: String::new(),
             bundle_id: None,
+            cycle_windows: false,
             match_type: UrlMatchType::Domain,
             browser: None,
             field: ActionEditorField::Type,
@@ -96,10 +99,11 @@ impl ActionEditor {
 
     pub fn from_action(action: &Action) -> Self {
         match action {
-            Action::App { target, bundle_id } => Self {
+            Action::App { target, bundle_id, cycle_windows } => Self {
                 action_type: ActionType::App,
                 target: target.clone(),
                 bundle_id: bundle_id.clone(),
+                cycle_windows: *cycle_windows,
                 match_type: UrlMatchType::Domain,
                 browser: None,
                 field: ActionEditorField::Type,
@@ -113,6 +117,7 @@ impl ActionEditor {
                 action_type: ActionType::Url,
                 target: target.clone(),
                 bundle_id: None,
+                cycle_windows: false,
                 match_type: match_type.clone(),
                 browser: browser.clone(),
                 field: ActionEditorField::Type,
@@ -122,6 +127,7 @@ impl ActionEditor {
                 action_type: ActionType::Shell,
                 target: command.clone(),
                 bundle_id: None,
+                cycle_windows: false,
                 match_type: UrlMatchType::Domain,
                 browser: None,
                 field: ActionEditorField::Type,
@@ -135,6 +141,7 @@ impl ActionEditor {
             ActionType::App => Action::App {
                 target: self.target.clone(),
                 bundle_id: self.bundle_id.clone(),
+                cycle_windows: self.cycle_windows,
             },
             ActionType::Url => Action::Url {
                 target: self.target.clone(),
@@ -153,6 +160,8 @@ impl ActionEditor {
             (ActionType::Url, ActionEditorField::Target) => ActionEditorField::MatchType,
             (ActionType::Url, ActionEditorField::MatchType) => ActionEditorField::Browser,
             (ActionType::Url, ActionEditorField::Browser) => ActionEditorField::Type,
+            (ActionType::App, ActionEditorField::Target) => ActionEditorField::CycleWindows,
+            (ActionType::App, ActionEditorField::CycleWindows) => ActionEditorField::Type,
             (_, ActionEditorField::Target) => ActionEditorField::Type,
             _ => ActionEditorField::Type,
         };
@@ -160,13 +169,12 @@ impl ActionEditor {
 
     pub fn prev_field(&mut self) {
         self.field = match (&self.action_type, &self.field) {
-            (_, ActionEditorField::Type) => {
-                if self.action_type == ActionType::Url {
-                    ActionEditorField::Browser
-                } else {
-                    ActionEditorField::Target
-                }
-            }
+            (_, ActionEditorField::Type) => match self.action_type {
+                ActionType::Url => ActionEditorField::Browser,
+                ActionType::App => ActionEditorField::CycleWindows,
+                ActionType::Shell => ActionEditorField::Target,
+            },
+            (_, ActionEditorField::CycleWindows) => ActionEditorField::Target,
             (_, ActionEditorField::Target) => ActionEditorField::Type,
             (_, ActionEditorField::MatchType) => ActionEditorField::Target,
             (_, ActionEditorField::Browser) => ActionEditorField::MatchType,
@@ -668,6 +676,7 @@ impl App {
                     actions: vec![Action::App {
                         target: app.name.clone(),
                         bundle_id: Some(app.bundle_id.clone()),
+                        cycle_windows: false,
                     }],
                 };
                 dynamics.push(binding);

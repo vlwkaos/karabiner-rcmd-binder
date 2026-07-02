@@ -80,7 +80,7 @@ The TUI uses **two modes** (like vim):
 - `J`/`K` - Move action up/down
 
 **Action Editor**:
-- Nav mode: `Enter` to edit Target, `←`/`→` to cycle Type/Browser, `s` to save
+- Nav mode: `Enter` to edit Target, `←`/`→` to cycle Type/Browser/Cycle Windows, `s` to save
 - Edit mode: Type target (app name/URL/command), `Enter` to finish
 
 **Tip**: Status bar (bottom) shows all available shortcuts for current context
@@ -117,6 +117,15 @@ type = "app"
 target = "iTerm"
 
 [[bindings]]
+key = "c"
+description = "Cursor windows"
+
+[[bindings.actions]]
+type = "app"
+target = "Cursor"
+cycle_windows = true   # single App action only: first press focuses, repeats cycle windows
+
+[[bindings]]
 key = "g"
 description = "GitHub"
 
@@ -150,6 +159,12 @@ On startup, the TUI auto-generates **suggestions** for unassigned `rcmd+{letter}
 ```
 rcmd+t → Terminal → iTerm → Warp → (cycles)
 ```
+
+**Cycling Windows**: Single App action with `cycle_windows` — rotate between one app's windows
+```
+rcmd+c → Cursor focuses (first press) → next Cursor window → next → (wraps)
+```
+Only applies when the binding has exactly one App action with a bundle ID. Requires the same Accessibility permission as Center Mouse.
 
 **Smart URL with Browser**: URL action with browser override
 ```

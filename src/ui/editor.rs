@@ -171,7 +171,8 @@ fn draw_action_editor(
     // Different layout based on action type
     let num_fields = match action_editor.action_type {
         ActionType::Url => 4,
-        _ => 2,
+        ActionType::App => 3, // Type, Target, CycleWindows
+        ActionType::Shell => 2,
     };
 
     let mut constraints = vec![Constraint::Length(3); num_fields];
@@ -205,6 +206,27 @@ fn draw_action_editor(
         .border_style(target_style);
     let target_text = Paragraph::new(action_editor.target.as_str()).block(target_block);
     frame.render_widget(target_text, chunks[1]);
+
+    // App-specific field: window cycling toggle
+    if action_editor.action_type == ActionType::App {
+        let cycle_style = field_style(action_editor.field == ActionEditorField::CycleWindows);
+        // Window cycling needs a bundle ID (uses `open -b`); gray out and force-read OFF without one.
+        let has_bundle = action_editor.bundle_id.as_ref().map(|b| !b.is_empty()).unwrap_or(false);
+        let (value_text, value_color) = if !has_bundle {
+            ("OFF (needs bundle ID)", Color::DarkGray)
+        } else if action_editor.cycle_windows {
+            ("ON", Color::Green)
+        } else {
+            ("OFF", Color::DarkGray)
+        };
+        let cycle_block = Block::default()
+            .borders(Borders::ALL)
+            .title(" Cycle Windows (</> to toggle) ")
+            .border_style(cycle_style);
+        let cycle_para = Paragraph::new(Span::styled(value_text, Style::default().fg(value_color)))
+            .block(cycle_block);
+        frame.render_widget(cycle_para, chunks[2]);
+    }
 
     // URL-specific fields
     if action_editor.action_type == ActionType::Url {

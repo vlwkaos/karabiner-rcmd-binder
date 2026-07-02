@@ -9,7 +9,7 @@ pub fn validate_and_update_config(config: &mut Config) -> Result<Vec<String>> {
 
     for binding in &mut config.bindings {
         for action in &mut binding.actions {
-            if let Action::App { target, bundle_id } = action {
+            if let Action::App { target, bundle_id, .. } = action {
                 // Skip if bundle ID already exists and is not empty
                 if bundle_id.as_ref().map_or(false, |id| !id.is_empty()) {
                     continue;

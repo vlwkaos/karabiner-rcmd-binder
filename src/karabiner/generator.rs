@@ -62,7 +62,8 @@ fn generate_single_action_manipulators(
     let to = if binding.actions.is_empty() {
         vec![]
     } else {
-        vec![action_to_karabiner(&binding.actions[0], default_browser, center_mouse)]
+        // Sole action: window cycling is allowed here (never in the multi-action cycling path).
+        vec![action_to_karabiner(&binding.actions[0], default_browser, center_mouse, true)]
     };
 
     vec![json!({
@@ -96,7 +97,8 @@ fn generate_cycling_manipulators(
         .enumerate()
         .map(|(i, action)| {
             let next_value = (i + 1) % num_actions;
-            let action_to = action_to_karabiner(action, default_browser, center_mouse);
+            // Multi-action cycling owns the keypress: window cycling is disabled per action.
+            let action_to = action_to_karabiner(action, default_browser, center_mouse, false);
 
             json!({
                 "type": "basic",
@@ -120,20 +122,30 @@ fn generate_cycling_manipulators(
         .collect()
 }
 
-/// Convert our Action to Karabiner's to event
-fn action_to_karabiner(action: &Action, default_browser: &Browser, center_mouse: CenterMouseMode) -> Value {
+/// Convert our Action to Karabiner's to event.
+/// `allow_window_cycle` is true only when this is the binding's sole action; multi-action
+/// cycling owns the keypress so it always passes false.
+fn action_to_karabiner(action: &Action, default_browser: &Browser, center_mouse: CenterMouseMode, allow_window_cycle: bool) -> Value {
     match action {
-        Action::App { target, bundle_id } => {
+        Action::App { target, bundle_id, cycle_windows } => {
             let launch_cmd = match bundle_id {
-                Some(id) if !id.is_empty() => match center_mouse {
-                    CenterMouseMode::Off => format!("open -b {}", id),
-                    // $HOME expands at shell runtime — not tied to the save-time user path
-                    mode => format!(
-                        "open -b {} && \"{}/center-mouse.sh\" '{}' '{}'",
-                        id, SCRIPTS_RUNTIME_DIR, id, mode.as_str()
-                    ),
-                },
-                _ => format!("open -a '{}'", target), // Fallback: no bundle ID, skip center_mouse
+                Some(id) if !id.is_empty() => {
+                    // Window cycling: script focuses/launches on first press, raises next window after.
+                    let base = if allow_window_cycle && *cycle_windows {
+                        format!("\"{}/cycle-window.sh\" '{}'", SCRIPTS_RUNTIME_DIR, id)
+                    } else {
+                        format!("open -b {}", id)
+                    };
+                    match center_mouse {
+                        CenterMouseMode::Off => base,
+                        // $HOME expands at shell runtime — not tied to the save-time user path
+                        mode => format!(
+                            "{} && \"{}/center-mouse.sh\" '{}' '{}'",
+                            base, SCRIPTS_RUNTIME_DIR, id, mode.as_str()
+                        ),
+                    }
+                }
+                _ => format!("open -a '{}'", target), // Fallback: no bundle ID, skip cycle/center_mouse
             };
             json!({
                 "shell_command": launch_cmd
@@ -271,6 +283,7 @@ mod tests {
             actions: vec![Action::App {
                 target: "Terminal".to_string(),
                 bundle_id: Some("com.apple.Terminal".to_string()),
+                cycle_windows: false,
             }],
         };
 
@@ -288,10 +301,12 @@ mod tests {
                 Action::App {
                     target: "Terminal".to_string(),
                     bundle_id: Some("com.apple.Terminal".to_string()),
+                    cycle_windows: false,
                 },
                 Action::App {
                     target: "iTerm".to_string(),
                     bundle_id: Some("com.googlecode.iterm2".to_string()),
+                    cycle_windows: false,
                 },
             ],
         };
@@ -312,8 +327,9 @@ mod tests {
         let action = Action::App {
             target: "Terminal".to_string(),
             bundle_id: Some("com.apple.Terminal".to_string()),
+            cycle_windows: false,
         };
-        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::Always);
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::Always, true);
         let shell_cmd = cmd["shell_command"].as_str().unwrap();
 
         assert!(shell_cmd.contains("$HOME"), "must contain literal $HOME, not an absolute path");
@@ -329,11 +345,124 @@ mod tests {
         let action = Action::App {
             target: "Terminal".to_string(),
             bundle_id: Some("com.apple.Terminal".to_string()),
+            cycle_windows: false,
         };
-        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::MultiMonitorOnly);
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::MultiMonitorOnly, true);
         let shell_cmd = cmd["shell_command"].as_str().unwrap();
         assert!(shell_cmd.contains("center-mouse.sh"), "must invoke center-mouse.sh");
         assert!(shell_cmd.contains("'multi_monitor_only'"), "must pass multi_monitor_only mode arg");
+    }
+
+    #[test]
+    fn test_cycle_window_script_used_when_allowed_and_enabled() {
+        // Contract: cycle-window.sh emitted only when allow_window_cycle && cycle_windows && bundle_id present.
+        let action = Action::App {
+            target: "Terminal".to_string(),
+            bundle_id: Some("com.apple.Terminal".to_string()),
+            cycle_windows: true,
+        };
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::Off, true);
+        let shell_cmd = cmd["shell_command"].as_str().unwrap();
+        assert!(shell_cmd.contains("cycle-window.sh"), "should invoke cycle-window.sh");
+        assert!(shell_cmd.contains("'com.apple.Terminal'"), "must pass bundle id to script");
+        assert!(!shell_cmd.contains("open -b"), "must not fall back to open -b when cycling");
+        assert!(!shell_cmd.contains("center-mouse.sh"), "center off must not append center-mouse");
+    }
+
+    #[test]
+    fn test_cycle_window_disabled_when_allow_false_uses_open_b() {
+        // Multi-action cycling passes allow_window_cycle=false; must degrade to open -b.
+        let action = Action::App {
+            target: "Terminal".to_string(),
+            bundle_id: Some("com.apple.Terminal".to_string()),
+            cycle_windows: true,
+        };
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::Off, false);
+        let shell_cmd = cmd["shell_command"].as_str().unwrap();
+        assert_eq!(shell_cmd, "open -b com.apple.Terminal");
+    }
+
+    #[test]
+    fn test_cycle_windows_false_uses_open_b_even_when_allowed() {
+        let action = Action::App {
+            target: "Terminal".to_string(),
+            bundle_id: Some("com.apple.Terminal".to_string()),
+            cycle_windows: false,
+        };
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::Off, true);
+        let shell_cmd = cmd["shell_command"].as_str().unwrap();
+        assert_eq!(shell_cmd, "open -b com.apple.Terminal");
+    }
+
+    #[test]
+    fn test_empty_bundle_id_falls_back_to_open_a_and_skips_center() {
+        // Structurally valid but semantically wrong: bundle_id present but empty string.
+        // Must take the open -a fallback and skip center_mouse entirely.
+        let action = Action::App {
+            target: "My App".to_string(),
+            bundle_id: Some(String::new()),
+            cycle_windows: true,
+        };
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::Always, true);
+        let shell_cmd = cmd["shell_command"].as_str().unwrap();
+        assert_eq!(shell_cmd, "open -a 'My App'");
+        assert!(!shell_cmd.contains("center-mouse.sh"), "fallback must skip center_mouse");
+        assert!(!shell_cmd.contains("cycle-window.sh"), "empty bundle id cannot cycle");
+    }
+
+    #[test]
+    fn test_no_bundle_id_falls_back_to_open_a() {
+        let action = Action::App {
+            target: "My App".to_string(),
+            bundle_id: None,
+            cycle_windows: false,
+        };
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::MultiMonitorOnly, true);
+        let shell_cmd = cmd["shell_command"].as_str().unwrap();
+        assert_eq!(shell_cmd, "open -a 'My App'");
+    }
+
+    #[test]
+    fn test_multi_monitor_only_with_cycle_window_base() {
+        // Untested combination: cycle-window.sh base AND MultiMonitorOnly center mode chained.
+        let action = Action::App {
+            target: "Terminal".to_string(),
+            bundle_id: Some("com.apple.Terminal".to_string()),
+            cycle_windows: true,
+        };
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::MultiMonitorOnly, true);
+        let shell_cmd = cmd["shell_command"].as_str().unwrap();
+        assert!(shell_cmd.contains("cycle-window.sh"), "base must be cycle-window.sh");
+        assert!(shell_cmd.contains(" && "), "must chain base with center-mouse via &&");
+        assert!(shell_cmd.contains("center-mouse.sh"), "must append center-mouse.sh");
+        assert!(shell_cmd.contains("'multi_monitor_only'"), "must pass multi_monitor_only mode");
+    }
+
+    #[test]
+    fn test_cycling_manipulators_never_use_cycle_window_script() {
+        // Multi-action bindings own the keypress; no manipulator may cycle windows
+        // even if an action has cycle_windows=true.
+        let binding = Binding {
+            key: "t".to_string(),
+            description: "Terminals".to_string(),
+            actions: vec![
+                Action::App {
+                    target: "Terminal".to_string(),
+                    bundle_id: Some("com.apple.Terminal".to_string()),
+                    cycle_windows: true,
+                },
+                Action::App {
+                    target: "iTerm".to_string(),
+                    bundle_id: Some("com.googlecode.iterm2".to_string()),
+                    cycle_windows: true,
+                },
+            ],
+        };
+        let rule = generate_binding_rule(&binding, &AnchorKey::RightCommand, &Browser::Firefox, CenterMouseMode::Off);
+        for m in rule["manipulators"].as_array().unwrap() {
+            let shell_cmd = m["to"][0]["shell_command"].as_str().unwrap();
+            assert!(!shell_cmd.contains("cycle-window.sh"), "cycling path must never emit cycle-window.sh");
+        }
     }
 
     #[test]
@@ -343,11 +472,87 @@ mod tests {
             match_type: crate::config::UrlMatchType::Domain,
             browser: None,
         };
-        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::Off);
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::Off, true);
         let shell_cmd = cmd["shell_command"].as_str().unwrap();
 
         assert!(shell_cmd.contains("$HOME"), "must contain literal $HOME, not an absolute path");
         assert!(!shell_cmd.contains("/Users/"), "must not bake absolute user path at save time");
         assert!(shell_cmd.contains("\"$HOME"), "must double-quote $HOME for shell expansion");
+    }
+
+    #[test]
+    fn test_cycle_window_base_composes_with_center_always_script() {
+        let action = Action::App {
+            target: "Terminal".to_string(),
+            bundle_id: Some("com.apple.Terminal".to_string()),
+            cycle_windows: true,
+        };
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::Always, true);
+        assert!(cmd["shell_command"].as_str().unwrap().contains("cycle-window.sh"));
+    }
+
+    #[test]
+    fn test_cycle_window_base_passes_always_mode_arg() {
+        let action = Action::App {
+            target: "Terminal".to_string(),
+            bundle_id: Some("com.apple.Terminal".to_string()),
+            cycle_windows: true,
+        };
+        let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::Always, true);
+        assert!(cmd["shell_command"].as_str().unwrap().contains("'always'"));
+    }
+
+    #[test]
+    fn test_empty_binding_emits_single_manipulator() {
+        let binding = Binding {
+            key: "t".to_string(),
+            description: String::new(),
+            actions: vec![],
+        };
+        let rule = generate_binding_rule(&binding, &AnchorKey::RightCommand, &Browser::Firefox, CenterMouseMode::Off);
+        assert_eq!(rule["manipulators"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_empty_binding_manipulator_has_empty_to() {
+        let binding = Binding {
+            key: "t".to_string(),
+            description: String::new(),
+            actions: vec![],
+        };
+        let rule = generate_binding_rule(&binding, &AnchorKey::RightCommand, &Browser::Firefox, CenterMouseMode::Off);
+        assert!(rule["manipulators"][0]["to"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_single_action_binding_with_cycle_windows_emits_cycle_window_script() {
+        // End-to-end guard: the single-action path must pass allow_window_cycle=true so a
+        // real cycle_windows binding actually reaches cycle-window.sh (not just direct calls).
+        let binding = Binding {
+            key: "t".to_string(),
+            description: String::new(),
+            actions: vec![Action::App {
+                target: "Terminal".to_string(),
+                bundle_id: Some("com.apple.Terminal".to_string()),
+                cycle_windows: true,
+            }],
+        };
+        let rule = generate_binding_rule(&binding, &AnchorKey::RightCommand, &Browser::Firefox, CenterMouseMode::Off);
+        assert!(rule["manipulators"][0]["to"][0]["shell_command"].as_str().unwrap().contains("cycle-window.sh"));
+    }
+
+    #[test]
+    fn test_single_action_binding_with_cycle_windows_does_not_use_open_b() {
+        let binding = Binding {
+            key: "t".to_string(),
+            description: String::new(),
+            actions: vec![Action::App {
+                target: "Terminal".to_string(),
+                bundle_id: Some("com.apple.Terminal".to_string()),
+                cycle_windows: true,
+            }],
+        };
+        let rule = generate_binding_rule(&binding, &AnchorKey::RightCommand, &Browser::Firefox, CenterMouseMode::Off);
+        assert!(!rule["manipulators"][0]["to"][0]["shell_command"].as_str().unwrap().contains("open -b"));
     }
 }

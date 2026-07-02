@@ -1,3 +1,9 @@
+## [0.6.0] - 2026-07-02
+
+### Features
+
+- Add per-App-action **window cycling** (`cycle_windows`): when a binding has a single App action with a bundle ID, the first press focuses/launches the app and repeat presses rotate through its windows (wrapping). Coexists with multi-action cycling, which continues to own keys bound to more than one action. Toggle it in the Action Editor (`←`/`→`/`space`); requires the same Accessibility permission as Center Mouse.
+
 ## [0.5.2] - 2026-04-25
 
 ### Features

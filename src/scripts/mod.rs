@@ -295,25 +295,74 @@ function run(argv) {
 JSEOF
 "#;
 
+/// Embedded cycle-window.sh script
+const CYCLE_WINDOW_SCRIPT: &str = r#"#!/usr/bin/env bash
+# cycle-window.sh <bundle_id>
+# First press (app not frontmost): launch/focus the app.
+# Repeat press (app already frontmost): raise its next window, wrapping around.
+# State is implicit in live window focus — no Karabiner variable needed.
+
+BUNDLE_ID="$1"
+
+if [ -z "$BUNDLE_ID" ]; then
+    exit 1
+fi
+
+osascript -l JavaScript - "$BUNDLE_ID" << 'JSEOF'
+ObjC.import('AppKit');
+
+function run(argv) {
+    var targetBundle = argv[0];
+    var sysEvt = Application('System Events');
+
+    // Is the target app already frontmost?
+    var frontmost = false;
+    try {
+        var procs = sysEvt.processes.whose({ frontmost: true })();
+        if (procs.length > 0 && procs[0].bundleIdentifier() === targetBundle) {
+            frontmost = true;
+        }
+    } catch (e) {}
+
+    if (!frontmost) {
+        // First press: launch or focus the app, then stop.
+        $.NSWorkspace.sharedWorkspace.launchAppWithBundleIdentifierOptionsAdditionalEventParamDescriptorLaunchIdentifier(
+            targetBundle, $.NSWorkspaceLaunchDefault, $.NSAppleEventDescriptor.nullDescriptor, null
+        );
+        return;
+    }
+
+    // App is frontmost: cycle to its next window.
+    try {
+        var proc = sysEvt.processes.whose({ bundleIdentifier: targetBundle })()[0];
+        if (!proc) return;
+        var wins = proc.windows();
+        if (!wins || wins.length <= 1) return; // Nothing to cycle
+
+        // The frontmost window is index 0; raise the next one.
+        var next = wins[1];
+        proc.frontmost = true;
+        next.actions['AXRaise'].perform();
+    } catch (e) {}
+}
+JSEOF
+"#;
+
+fn write_executable(path: &std::path::Path, content: &str) -> Result<()> {
+    fs::write(path, content).with_context(|| format!("Failed to write {:?}", path))?;
+    let mut perms = fs::metadata(path)?.permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(path, perms)?;
+    Ok(())
+}
+
 /// Install helper scripts to the config directory
 pub fn install_scripts() -> Result<PathBuf> {
     let scripts_dir = ensure_scripts_dir()?;
 
-    // Install url-focus.sh
-    let url_focus_path = scripts_dir.join("url-focus.sh");
-    fs::write(&url_focus_path, URL_FOCUS_SCRIPT)
-        .with_context(|| format!("Failed to write {:?}", url_focus_path))?;
-    let mut perms = fs::metadata(&url_focus_path)?.permissions();
-    perms.set_mode(0o755);
-    fs::set_permissions(&url_focus_path, perms)?;
-
-    // Install center-mouse.sh
-    let center_mouse_path = scripts_dir.join("center-mouse.sh");
-    fs::write(&center_mouse_path, CENTER_MOUSE_SCRIPT)
-        .with_context(|| format!("Failed to write {:?}", center_mouse_path))?;
-    let mut perms = fs::metadata(&center_mouse_path)?.permissions();
-    perms.set_mode(0o755);
-    fs::set_permissions(&center_mouse_path, perms)?;
+    write_executable(&scripts_dir.join("url-focus.sh"), URL_FOCUS_SCRIPT)?;
+    write_executable(&scripts_dir.join("center-mouse.sh"), CENTER_MOUSE_SCRIPT)?;
+    write_executable(&scripts_dir.join("cycle-window.sh"), CYCLE_WINDOW_SCRIPT)?;
 
     Ok(scripts_dir)
 }
@@ -334,12 +383,20 @@ mod tests {
             "center-mouse.sh must start with #!/usr/bin/env bash"
         );
         assert!(
+            CYCLE_WINDOW_SCRIPT.starts_with("#!/usr/bin/env bash"),
+            "cycle-window.sh must start with #!/usr/bin/env bash"
+        );
+        assert!(
             !URL_FOCUS_SCRIPT.contains("#!/bin/bash"),
             "url-focus.sh must not contain #!/bin/bash"
         );
         assert!(
             !CENTER_MOUSE_SCRIPT.contains("#!/bin/bash"),
             "center-mouse.sh must not contain #!/bin/bash"
+        );
+        assert!(
+            !CYCLE_WINDOW_SCRIPT.contains("#!/bin/bash"),
+            "cycle-window.sh must not contain #!/bin/bash"
         );
     }
 
@@ -353,6 +410,10 @@ mod tests {
         assert!(
             !CENTER_MOUSE_SCRIPT.contains("/Users/"),
             "center-mouse.sh must not embed absolute user path"
+        );
+        assert!(
+            !CYCLE_WINDOW_SCRIPT.contains("/Users/"),
+            "cycle-window.sh must not embed absolute user path"
         );
     }
 }

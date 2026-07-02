@@ -125,6 +125,10 @@ pub enum Action {
         target: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         bundle_id: Option<String>,
+        // Cycle through the app's windows on repeat presses (first press launches/focuses).
+        // Only honored when this is the binding's sole action and bundle_id is present.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        cycle_windows: bool,
     },
     Url {
         target: String,
@@ -141,12 +145,10 @@ pub enum Action {
 impl Action {
     pub fn display_summary(&self) -> String {
         match self {
-            Action::App { target, bundle_id } => {
-                if bundle_id.is_some() {
-                    format!("{} ✓", target) // Checkmark shows bundle ID present
-                } else {
-                    target.clone()
-                }
+            Action::App { target, bundle_id, cycle_windows } => {
+                let bundle_mark = if bundle_id.is_some() { " ✓" } else { "" }; // Checkmark shows bundle ID present
+                let cycle_mark = if *cycle_windows { " ↻win" } else { "" }; // Window cycling enabled
+                format!("{}{}{}", target, bundle_mark, cycle_mark)
             }
             Action::Url {
                 target, match_type, ..
@@ -354,5 +356,98 @@ mod tests {
         let toml = "center_mouse = true\n";
         let settings: Settings = toml::from_str(toml).unwrap();
         assert_eq!(settings.center_mouse, CenterMouseMode::Always);
+    }
+
+    // Action has no PartialEq, so match on fields rather than asserting whole-enum equality.
+
+    #[test]
+    fn test_app_cycle_windows_defaults_false_when_missing() {
+        let json = r#"{"type":"app","target":"Terminal","bundle_id":"com.apple.Terminal"}"#;
+        let action: Action = serde_json::from_str(json).unwrap();
+        match action {
+            Action::App { cycle_windows, .. } => assert!(!cycle_windows, "missing field must default false"),
+            _ => panic!("expected Action::App"),
+        }
+    }
+
+    // Deserialize of cycle_windows:true is covered by test_app_cycle_windows_true_round_trips.
+
+    #[test]
+    fn test_app_cycle_windows_false_is_omitted_on_serialize() {
+        let action = Action::App {
+            target: "Terminal".to_string(),
+            bundle_id: Some("com.apple.Terminal".to_string()),
+            cycle_windows: false,
+        };
+        let json = serde_json::to_string(&action).unwrap();
+        assert!(!json.contains("cycle_windows"), "false must be omitted");
+    }
+
+    #[test]
+    fn test_app_cycle_windows_true_is_included_on_serialize() {
+        let action = Action::App {
+            target: "Terminal".to_string(),
+            bundle_id: Some("com.apple.Terminal".to_string()),
+            cycle_windows: true,
+        };
+        let json = serde_json::to_string(&action).unwrap();
+        assert!(json.contains("\"cycle_windows\":true"), "true must be present");
+    }
+
+    #[test]
+    fn test_app_cycle_windows_true_round_trips() {
+        // Serialize-then-deserialize must preserve cycle_windows=true.
+        let action = Action::App {
+            target: "Terminal".to_string(),
+            bundle_id: Some("com.apple.Terminal".to_string()),
+            cycle_windows: true,
+        };
+        let json = serde_json::to_string(&action).unwrap();
+        let back: Action = serde_json::from_str(&json).unwrap();
+        match back {
+            Action::App { target, bundle_id, cycle_windows } => {
+                assert_eq!(target, "Terminal");
+                assert_eq!(bundle_id.as_deref(), Some("com.apple.Terminal"));
+                assert!(cycle_windows);
+            }
+            _ => panic!("expected Action::App"),
+        }
+    }
+
+    #[test]
+    fn test_display_summary_appends_win_glyph_when_cycling() {
+        let action = Action::App {
+            target: "Terminal".to_string(),
+            bundle_id: Some("com.apple.Terminal".to_string()),
+            cycle_windows: true,
+        };
+        let summary = action.display_summary();
+        assert!(summary.ends_with("↻win"), "cycling app summary must end with win glyph, got {summary:?}");
+    }
+
+    #[test]
+    fn test_display_summary_no_win_glyph_when_not_cycling() {
+        let action = Action::App {
+            target: "Terminal".to_string(),
+            bundle_id: Some("com.apple.Terminal".to_string()),
+            cycle_windows: false,
+        };
+        let summary = action.display_summary();
+        assert!(!summary.contains("↻win"), "non-cycling summary must omit win glyph");
+    }
+
+    #[test]
+    fn test_display_summary_no_win_glyph_without_bundle_id_even_if_cycling() {
+        // Structurally valid but semantically wrong: cycle_windows=true but no bundle_id.
+        // Model has no cross-field guard, so glyph still shows; this pins the current contract
+        // so a future guard (dropping the glyph) becomes a deliberate, visible change.
+        let action = Action::App {
+            target: "My App".to_string(),
+            bundle_id: None,
+            cycle_windows: true,
+        };
+        let summary = action.display_summary();
+        assert!(!summary.contains("✓"), "no bundle id means no checkmark");
+        assert!(summary.ends_with("↻win"), "cycle_windows glyph is not gated on bundle_id in the model");
     }
 }
