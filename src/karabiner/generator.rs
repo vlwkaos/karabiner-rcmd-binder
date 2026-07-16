@@ -137,20 +137,30 @@ fn action_to_karabiner(action: &Action, default_browser: &Browser, center_mouse:
         Action::App { target, bundle_id, cycle_windows } => {
             let launch_cmd = match bundle_id {
                 Some(id) if !id.is_empty() => {
-                    // Window cycling: script focuses/launches on first press, raises next window after.
-                    let base = if allow_window_cycle && *cycle_windows {
-                        format!("\"{}/cycle-window.sh\" {}", SCRIPTS_RUNTIME_DIR, sh_quote(id))
+                    if allow_window_cycle && *cycle_windows {
+                        // Cycling path: cycle-window.sh focuses/launches on first press and raises
+                        // the next window after, AND (when centering) centers the cursor in the same
+                        // osascript — one JXA interpreter start, not two chained scripts.
+                        // $HOME expands at shell runtime; mode is an enum-derived constant (no escaping).
+                        match center_mouse {
+                            CenterMouseMode::Off => {
+                                format!("\"{}/cycle-window.sh\" {}", SCRIPTS_RUNTIME_DIR, sh_quote(id))
+                            }
+                            mode => format!(
+                                "\"{}/cycle-window.sh\" {} '{}'",
+                                SCRIPTS_RUNTIME_DIR, sh_quote(id), mode.as_str()
+                            ),
+                        }
                     } else {
-                        format!("open -b {}", sh_quote(id))
-                    };
-                    match center_mouse {
-                        CenterMouseMode::Off => base,
-                        // $HOME expands at shell runtime — not tied to the save-time user path.
-                        // mode is an enum-derived constant, so it needs no escaping.
-                        mode => format!(
-                            "{} && \"{}/center-mouse.sh\" {} '{}'",
-                            base, SCRIPTS_RUNTIME_DIR, sh_quote(id), mode.as_str()
-                        ),
+                        // Non-cycling: native `open -b` (fast), optionally chaining center-mouse.sh.
+                        let base = format!("open -b {}", sh_quote(id));
+                        match center_mouse {
+                            CenterMouseMode::Off => base,
+                            mode => format!(
+                                "{} && \"{}/center-mouse.sh\" {} '{}'",
+                                base, SCRIPTS_RUNTIME_DIR, sh_quote(id), mode.as_str()
+                            ),
+                        }
                     }
                 }
                 _ => format!("open -a {}", sh_quote(target)), // Fallback: no bundle ID, skip cycle/center_mouse
@@ -433,7 +443,8 @@ mod tests {
 
     #[test]
     fn test_multi_monitor_only_with_cycle_window_base() {
-        // Untested combination: cycle-window.sh base AND MultiMonitorOnly center mode chained.
+        // Cycling + centering is a SINGLE cycle-window.sh call (one osascript): the mode is
+        // passed as an arg, and center-mouse.sh is NOT chained (that would be a second interpreter).
         let action = Action::App {
             target: "Terminal".to_string(),
             bundle_id: Some("com.apple.Terminal".to_string()),
@@ -442,9 +453,9 @@ mod tests {
         let cmd = action_to_karabiner(&action, &Browser::Firefox, CenterMouseMode::MultiMonitorOnly, true);
         let shell_cmd = cmd["shell_command"].as_str().unwrap();
         assert!(shell_cmd.contains("cycle-window.sh"), "base must be cycle-window.sh");
-        assert!(shell_cmd.contains(" && "), "must chain base with center-mouse via &&");
-        assert!(shell_cmd.contains("center-mouse.sh"), "must append center-mouse.sh");
-        assert!(shell_cmd.contains("'multi_monitor_only'"), "must pass multi_monitor_only mode");
+        assert!(shell_cmd.contains("'multi_monitor_only'"), "must pass multi_monitor_only mode arg");
+        assert!(!shell_cmd.contains("center-mouse.sh"), "cycling must center in-process, not chain center-mouse.sh");
+        assert!(!shell_cmd.contains(" && "), "cycling+center must be a single command, not chained");
     }
 
     #[test]

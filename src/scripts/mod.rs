@@ -266,83 +266,131 @@ function run(argv) {
         return;
     }
 
-    var timeout = 0.5;
-    var interval = 0.05;
-    var elapsed = 0;
-    var sysEvt = Application('System Events');
+    var ws = $.NSWorkspace.sharedWorkspace;
 
+    // Wait for the target app to become frontmost. Poll NSWorkspace in-process
+    // (~microseconds/iteration) instead of System Events over Apple Events (~80ms),
+    // so this resolves the instant the app activates rather than after poll rounds.
+    var timeout = 0.5;
+    var interval = 0.01;
+    var elapsed = 0;
+    var isFront = false;
     while (elapsed < timeout) {
-        try {
-            var procs = sysEvt.processes.whose({ frontmost: true })();
-            if (procs.length > 0) {
-                var front = procs[0];
-                if (front.bundleIdentifier() === targetBundle) {
-                    var win = front.windows[0];
-                    var pos = win.position();
-                    var sz = win.size();
-                    $.CGWarpMouseCursorPosition({
-                        x: pos[0] + sz[0] / 2,
-                        y: pos[1] + sz[1] / 2
-                    });
-                    return;
-                }
-            }
-        } catch(e) {}
+        var frontBundle = null;
+        try { frontBundle = ws.frontmostApplication.bundleIdentifier.js; } catch (e) {}
+        if (frontBundle === targetBundle) { isFront = true; break; }
         delay(interval);
         elapsed += interval;
     }
+    if (!isFront) return;
+
+    // Frontmost: read the front window geometry once (AX) and center the cursor on it.
+    try {
+        var sysEvt = Application('System Events');
+        var proc = sysEvt.processes.whose({ bundleIdentifier: targetBundle })()[0];
+        if (!proc) return;
+        var win = proc.windows[0];
+        var pos = win.position();
+        var sz = win.size();
+        $.CGWarpMouseCursorPosition({
+            x: pos[0] + sz[0] / 2,
+            y: pos[1] + sz[1] / 2
+        });
+    } catch(e) {}
 }
 JSEOF
 "#;
 
 /// Embedded cycle-window.sh script
 const CYCLE_WINDOW_SCRIPT: &str = r#"#!/usr/bin/env bash
-# cycle-window.sh <bundle_id>
+# cycle-window.sh <bundle_id> [center_mode]
 # First press (app not frontmost): launch/focus the app.
 # Repeat press (app already frontmost): raise its next window, wrapping around.
 # State is implicit in live window focus — no Karabiner variable needed.
+# center_mode (always|multi_monitor_only), when set, centers the cursor on the
+# resulting front window IN THE SAME osascript, so the cycling+center path pays a
+# single JXA interpreter start instead of chaining a second center-mouse.sh process.
 
 BUNDLE_ID="$1"
+MODE="$2"
 
 if [ -z "$BUNDLE_ID" ]; then
     exit 1
 fi
 
-osascript -l JavaScript - "$BUNDLE_ID" << 'JSEOF'
+osascript -l JavaScript - "$BUNDLE_ID" "$MODE" << 'JSEOF'
+ObjC.import('CoreGraphics');
 ObjC.import('AppKit');
+
+function centerWanted(mode) {
+    if (!mode) return false;
+    if (mode === 'multi_monitor_only' && $.NSScreen.screens.count <= 1) return false;
+    return true;
+}
+
+function warpToWindow(win) {
+    try {
+        var pos = win.position();
+        var sz = win.size();
+        $.CGWarpMouseCursorPosition({ x: pos[0] + sz[0] / 2, y: pos[1] + sz[1] / 2 });
+    } catch (e) {}
+}
 
 function run(argv) {
     var targetBundle = argv[0];
-    var sysEvt = Application('System Events');
+    var mode = argv[1] || '';
+    var wantCenter = centerWanted(mode);
+    var ws = $.NSWorkspace.sharedWorkspace;
 
-    // Is the target app already frontmost?
-    var frontmost = false;
-    try {
-        var procs = sysEvt.processes.whose({ frontmost: true })();
-        if (procs.length > 0 && procs[0].bundleIdentifier() === targetBundle) {
-            frontmost = true;
-        }
-    } catch (e) {}
+    // Is the target app already frontmost? Read it in-process via NSWorkspace
+    // (~microseconds) instead of a System Events Apple-Events query (~80ms).
+    var frontBundle = null;
+    try { frontBundle = ws.frontmostApplication.bundleIdentifier.js; } catch (e) {}
 
-    if (!frontmost) {
-        // First press: launch or focus the app, then stop.
-        $.NSWorkspace.sharedWorkspace.launchAppWithBundleIdentifierOptionsAdditionalEventParamDescriptorLaunchIdentifier(
+    if (frontBundle !== targetBundle) {
+        // First press: launch or focus the app.
+        ws.launchAppWithBundleIdentifierOptionsAdditionalEventParamDescriptorLaunchIdentifier(
             targetBundle, $.NSWorkspaceLaunchDefault, $.NSAppleEventDescriptor.nullDescriptor, null
         );
+        if (!wantCenter) return;
+        // Wait for the app to become frontmost (polling NSWorkspace in-process, near-free),
+        // then center on its front window. AX is only touched once, after it fronts.
+        var timeout = 0.5, interval = 0.01, elapsed = 0, isFront = false;
+        while (elapsed < timeout) {
+            var fb = null;
+            try { fb = ws.frontmostApplication.bundleIdentifier.js; } catch (e) {}
+            if (fb === targetBundle) { isFront = true; break; }
+            delay(interval);
+            elapsed += interval;
+        }
+        if (!isFront) return;
+        try {
+            var sysEvt = Application('System Events');
+            var proc = sysEvt.processes.whose({ bundleIdentifier: targetBundle })()[0];
+            if (proc) warpToWindow(proc.windows[0]);
+        } catch (e) {}
         return;
     }
 
-    // App is frontmost: cycle to its next window.
+    // App is frontmost: cycle to its next window (window geometry/raise needs AX).
     try {
+        var sysEvt = Application('System Events');
         var proc = sysEvt.processes.whose({ bundleIdentifier: targetBundle })()[0];
         if (!proc) return;
         var wins = proc.windows();
-        if (!wins || wins.length <= 1) return; // Nothing to cycle
+        if (!wins || wins.length === 0) return;
+        if (wins.length === 1) {
+            // Nothing to cycle; still center on the sole window if asked.
+            if (wantCenter) warpToWindow(wins[0]);
+            return;
+        }
 
         // The frontmost window is index 0; raise the next one.
         var next = wins[1];
         proc.frontmost = true;
         next.actions['AXRaise'].perform();
+        // Center on the window we just raised (we hold its reference — no re-query race).
+        if (wantCenter) warpToWindow(next);
     } catch (e) {}
 }
 JSEOF

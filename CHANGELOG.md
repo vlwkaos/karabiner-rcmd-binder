@@ -1,3 +1,13 @@
+## [0.6.1] - 2026-07-16
+
+### Changed
+
+- Window cycling (`cycle_windows`) now defaults **on** for single-App actions in the Action Editor: adding an App action and selecting an app with a bundle ID enables window cycling automatically. Set it to `false` (toggle in the editor) to opt out. Actions without a bundle ID are unaffected: the flag is still gated on a bundle ID and never persisted without one.
+
+### Performance
+
+- Faster app focus / window cycling. Three changes: (1) the helpers read the frontmost app in-process via `NSWorkspace` instead of a `System Events` Apple-Events query (~30-50ms saved per press); (2) cursor-centering polls at 10ms in-process instead of 50ms over Apple Events, so it centers the instant the app activates; (3) when a single-App binding both cycles windows and centers the mouse, it now runs in **one** `osascript` (cycle-window.sh centers itself) instead of chaining a second `center-mouse.sh` process, saving a whole JXA interpreter start (~50-80ms). Accessibility (AX) is used only for the one-time window-geometry read.
+
 ## [0.6.0] - 2026-07-02
 
 ### Features
