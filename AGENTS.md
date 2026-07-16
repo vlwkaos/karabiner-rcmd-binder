@@ -51,6 +51,14 @@ cargo test        # Run tests
 
 release.flow: rust
 
+Releases go through the `/release` rust flow: it builds a universal (arm64 +
+x86_64) binary via `lipo`, GPG-signs the tarball (no Apple codesign), creates a
+Homebrew bottle, publishes the GitHub release, runs `cargo publish`, and updates
+the Homebrew tap formula. Artifacts are `rcmdb-<ver>-darwin-universal.tar.gz` +
+`rcmdb-<ver>.all.bottle.tar.gz`. There is intentionally no local `make release`:
+the former `scripts/release.sh`/`package.sh`/`sign.sh` built arm64-only,
+Apple-codesigned artifacts with no bottle and were removed.
+
 ## good-to-go
 
 Project-specific axes (extend defaults, do not replace):
