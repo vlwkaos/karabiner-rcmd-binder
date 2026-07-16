@@ -293,11 +293,7 @@ fn handle_editing_mode(app: &mut App, key: KeyCode, _modifiers: KeyModifiers) ->
                 // Boolean toggle: arrows, </>, or space flip it. Only meaningful for App actions.
                 // Gated on a non-empty bundle_id — window cycling uses `open -b` and the
                 // generator ignores the flag without one, so don't let it be set true here.
-                let has_bundle = action_editor
-                    .bundle_id
-                    .as_ref()
-                    .map(|b| !b.is_empty())
-                    .unwrap_or(false);
+                let has_bundle = action_editor.has_bundle();
                 match key {
                     KeyCode::Left
                     | KeyCode::Right

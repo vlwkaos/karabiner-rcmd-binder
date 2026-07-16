@@ -123,7 +123,7 @@ description = "Cursor windows"
 [[bindings.actions]]
 type = "app"
 target = "Cursor"
-cycle_windows = true   # single App action only: first press focuses, repeats cycle windows
+cycle_windows = true   # single App action only: first press focuses, repeats cycle windows (default on; set false to opt out)
 
 [[bindings]]
 key = "g"

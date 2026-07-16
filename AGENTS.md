@@ -61,6 +61,6 @@ Project-specific axes (extend defaults, do not replace):
 | **Embedded script args** | When `CenterMouseMode::as_str()` values change, verify they match the bash `case`/`if` strings inside `CENTER_MOUSE_SCRIPT` in `src/scripts/mod.rs` |
 | **Serde legacy compat** | `CenterMouseMode` deserializer accepts both old bool and new string — must keep `visit_bool` if removing a variant that maps to an old bool value |
 | **Runtime script embedded vs installed** | Every helper script referenced by the generator (`SCRIPTS_RUNTIME_DIR/*.sh`) must be embedded as a `const` in `src/scripts/mod.rs` AND written in `install_scripts()`. Adding a generator invocation without both = runtime "file not found". |
-| **Flag gated on prerequisite** | A per-action bool that the generator ignores without a prerequisite (e.g. `cycle_windows` needs a non-empty `bundle_id`) must be gated in the input handler too, so the UI cannot set a state the generator silently drops. |
+| **Flag gated on prerequisite** | A per-action bool that the generator ignores without a prerequisite (e.g. `cycle_windows` needs a non-empty `bundle_id`) must be gated everywhere the state is set OR persisted: input handler AND `ActionEditor::to_action` (and any default in `ActionEditor::new`), so the UI can neither show nor save a state the generator silently drops. |
 
 - Uncertain about project term/schema/convention/prior decision → `/seek <topic>` first (lightweight KB lookup; same tier as grep/Glob).

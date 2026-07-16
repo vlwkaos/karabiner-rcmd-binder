@@ -211,7 +211,7 @@ fn draw_action_editor(
     if action_editor.action_type == ActionType::App {
         let cycle_style = field_style(action_editor.field == ActionEditorField::CycleWindows);
         // Window cycling needs a bundle ID (uses `open -b`); gray out and force-read OFF without one.
-        let has_bundle = action_editor.bundle_id.as_ref().map(|b| !b.is_empty()).unwrap_or(false);
+        let has_bundle = action_editor.has_bundle();
         let (value_text, value_color) = if !has_bundle {
             ("OFF (needs bundle ID)", Color::DarkGray)
         } else if action_editor.cycle_windows {

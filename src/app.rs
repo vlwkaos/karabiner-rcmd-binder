@@ -89,7 +89,9 @@ impl ActionEditor {
             action_type: ActionType::App,
             target: String::new(),
             bundle_id: None,
-            cycle_windows: false,
+            // Default ON for single-app configs: gated on bundle_id in the editor/generator,
+            // so it only takes effect once an app with a bundle id is selected.
+            cycle_windows: true,
             match_type: UrlMatchType::Domain,
             browser: None,
             field: ActionEditorField::Type,
@@ -136,12 +138,19 @@ impl ActionEditor {
         }
     }
 
+    /// Window cycling is only honored by the generator with a non-empty bundle_id; the
+    /// editor gates its toggle, persistence, and display on this single predicate.
+    pub fn has_bundle(&self) -> bool {
+        self.bundle_id.as_ref().is_some_and(|b| !b.is_empty())
+    }
+
     pub fn to_action(&self) -> Action {
         match self.action_type {
             ActionType::App => Action::App {
                 target: self.target.clone(),
                 bundle_id: self.bundle_id.clone(),
-                cycle_windows: self.cycle_windows,
+                // Never persist a state the generator silently drops (see has_bundle).
+                cycle_windows: self.has_bundle() && self.cycle_windows,
             },
             ActionType::Url => Action::Url {
                 target: self.target.clone(),
@@ -761,5 +770,133 @@ impl App {
             SettingsField::DefaultBrowser => SettingsField::CenterMouse,
             SettingsField::CenterMouse => SettingsField::AnchorKey,
         };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn given_fresh_editor_when_new_then_cycle_windows_is_true() {
+        assert!(ActionEditor::new().cycle_windows);
+    }
+
+    #[test]
+    fn given_fresh_editor_when_new_then_action_type_is_app() {
+        assert_eq!(ActionEditor::new().action_type, ActionType::App);
+    }
+
+    #[test]
+    fn given_none_bundle_when_has_bundle_then_false() {
+        let ed = ActionEditor { bundle_id: None, ..ActionEditor::new() };
+        assert!(!ed.has_bundle());
+    }
+
+    #[test]
+    fn given_empty_bundle_when_has_bundle_then_false() {
+        let ed = ActionEditor { bundle_id: Some("".to_string()), ..ActionEditor::new() };
+        assert!(!ed.has_bundle());
+    }
+
+    #[test]
+    fn given_nonempty_bundle_when_has_bundle_then_true() {
+        let ed = ActionEditor { bundle_id: Some("com.example.app".to_string()), ..ActionEditor::new() };
+        assert!(ed.has_bundle());
+    }
+
+    // --- to_action(): cycle_windows gating truth table (bundle present/absent x cycle on/off) ---
+
+    #[test]
+    fn given_bundle_and_cycle_on_when_to_action_then_cycle_windows_true() {
+        let ed = ActionEditor { action_type: ActionType::App, bundle_id: Some("com.example.app".to_string()), cycle_windows: true, ..ActionEditor::new() };
+        let crate::config::Action::App { cycle_windows, .. } = ed.to_action() else { panic!("expected Action::App"); };
+        assert!(cycle_windows);
+    }
+
+    #[test]
+    fn given_no_bundle_and_cycle_on_when_to_action_then_cycle_windows_false() {
+        let ed = ActionEditor { action_type: ActionType::App, bundle_id: None, cycle_windows: true, ..ActionEditor::new() };
+        let crate::config::Action::App { cycle_windows, .. } = ed.to_action() else { panic!("expected Action::App"); };
+        assert!(!cycle_windows);
+    }
+
+    #[test]
+    fn given_empty_bundle_and_cycle_on_when_to_action_then_cycle_windows_false() {
+        let ed = ActionEditor { action_type: ActionType::App, bundle_id: Some("".to_string()), cycle_windows: true, ..ActionEditor::new() };
+        let crate::config::Action::App { cycle_windows, .. } = ed.to_action() else { panic!("expected Action::App"); };
+        assert!(!cycle_windows);
+    }
+
+    #[test]
+    fn given_bundle_and_cycle_off_when_to_action_then_cycle_windows_false() {
+        let ed = ActionEditor { action_type: ActionType::App, bundle_id: Some("com.example.app".to_string()), cycle_windows: false, ..ActionEditor::new() };
+        let crate::config::Action::App { cycle_windows, .. } = ed.to_action() else { panic!("expected Action::App"); };
+        assert!(!cycle_windows);
+    }
+
+    // --- to_action(): verbatim field preservation ---
+
+    #[test]
+    fn given_app_editor_when_to_action_then_target_preserved() {
+        let ed = ActionEditor { action_type: ActionType::App, target: "Safari".to_string(), bundle_id: Some("com.example.app".to_string()), ..ActionEditor::new() };
+        let crate::config::Action::App { target, .. } = ed.to_action() else { panic!("expected Action::App"); };
+        assert_eq!(target, "Safari");
+    }
+
+    #[test]
+    fn given_empty_target_when_to_action_then_empty_target_preserved() {
+        // ^ boundary: empty target is copied verbatim, not defaulted or rejected
+        let ed = ActionEditor { action_type: ActionType::App, target: String::new(), bundle_id: Some("com.example.app".to_string()), ..ActionEditor::new() };
+        let crate::config::Action::App { target, .. } = ed.to_action() else { panic!("expected Action::App"); };
+        assert_eq!(target, "");
+    }
+
+    #[test]
+    fn given_app_editor_when_to_action_then_bundle_id_preserved() {
+        let ed = ActionEditor { action_type: ActionType::App, bundle_id: Some("com.example.app".to_string()), ..ActionEditor::new() };
+        let crate::config::Action::App { bundle_id, .. } = ed.to_action() else { panic!("expected Action::App"); };
+        assert_eq!(bundle_id, Some("com.example.app".to_string()));
+    }
+
+    #[test]
+    fn given_none_bundle_when_to_action_then_bundle_id_none_preserved() {
+        // ^ verbatim preservation of the None case: to_action must not coerce None -> Some("")
+        let ed = ActionEditor { action_type: ActionType::App, bundle_id: None, ..ActionEditor::new() };
+        let crate::config::Action::App { bundle_id, .. } = ed.to_action() else { panic!("expected Action::App"); };
+        assert_eq!(bundle_id, None);
+    }
+
+    // --- to_action(): non-App editors must not emit Action::App ---
+
+    #[test]
+    fn given_url_type_when_to_action_then_not_app_variant() {
+        let ed = ActionEditor { action_type: ActionType::Url, target: "https://example.com".to_string(), ..ActionEditor::new() };
+        assert!(!matches!(ed.to_action(), crate::config::Action::App { .. }));
+    }
+
+    #[test]
+    fn given_shell_type_when_to_action_then_not_app_variant() {
+        let ed = ActionEditor { action_type: ActionType::Shell, target: "echo hi".to_string(), ..ActionEditor::new() };
+        assert!(!matches!(ed.to_action(), crate::config::Action::App { .. }));
+    }
+
+    // --- semantic vs. structural validity ---
+
+    #[test]
+    fn given_garbage_but_nonempty_bundle_when_to_action_then_treated_as_valid() {
+        // ^ structurally valid (Some, non-empty) but semantically wrong: not a reverse-DNS
+        //   bundle id. Contract does NO format validation, so has_bundle() is true and the
+        //   cycle_windows gate passes. Pins that behavior so a future validator is deliberate.
+        let ed = ActionEditor {
+            action_type: ActionType::App,
+            target: "Safari".to_string(),
+            bundle_id: Some("not-a-real-bundle-id".to_string()),
+            cycle_windows: true,
+            ..ActionEditor::new()
+        };
+        assert!(ed.has_bundle());
+        let crate::config::Action::App { cycle_windows, .. } = ed.to_action() else { panic!("expected Action::App"); };
+        assert!(cycle_windows);
     }
 }
