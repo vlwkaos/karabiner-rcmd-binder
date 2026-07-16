@@ -39,6 +39,19 @@ Cycling + centering now runs in ONE osascript. `cycle-window.sh` takes an option
 - Cost: centering JS is duplicated across cycle-window.sh and center-mouse.sh (two separate osascript heredocs — can't share). Accepted.
 - Test contract change: `test_multi_monitor_only_with_cycle_window_base` now asserts single cycle-window.sh + mode arg, NO center-mouse.sh, NO ` && `.
 
+## release-v0.6.1 (2026-07-16)
+Released 0.6.0 -> 0.6.1. GitHub release + tag + Homebrew tap DONE. crates.io FAILED (expired token).
+
+### RELEASE GOTCHAS (do not repeat)
+- The project's `scripts/release.sh` + `package.sh` are STALE: they build arm64-only `rcmdb-VERSION-macos-arm64.tar.gz` with Apple codesign and NO bottle. They did NOT build v0.5.0+ (which are `-darwin-universal` + `.all.bottle.tar.gz`). DO NOT use them.
+- The correct release path is the GLOBAL skill script (matches AGENTS `release.flow: rust`):
+  `~/.claude/skills/rust-release/release.sh <VERSION> rcmdb vlwkaos/karabiner-rcmd-binder /Users/eliot/ws-ps/homebrew-tap`
+  It builds a universal binary via lipo, GPG-signs (NO Apple codesign at all), makes the bottle, pushes main+tag, creates the GH release, runs `cargo publish`, and rewrites+pushes the tap formula.
+- No Apple codesigning identity on this machine (0 valid, CODESIGN_IDENTITY unset). The global script never codesigns, so GPG-only just works. The project scripts would hard-fail here.
+- Homebrew tap lives at `/Users/eliot/ws-ps/homebrew-tap` (NOT `../homebrew-tap`). Pass it as arg 4.
+- crates.io token in `~/.cargo/credentials.toml` is EXPIRED/invalid -> `cargo publish` returned 403 Forbidden. The script runs cargo publish AFTER the GH release+tag push, so a bad token leaves a partial release (GH done, crates.io + Homebrew not). This time Homebrew was completed manually.
+
 ## pending
-- [x] A + C + B implemented, verified (61 tests), CHANGELOG [Unreleased] Performance entry covers all three.
-- [ ] Committing all changes + running `/release patch` (0.6.0 -> 0.6.1, flow=rust via scripts/release.sh: Apple codesign + GPG-signed tarball + GitHub release + Homebrew tap). In progress.
+- [x] A + C + B implemented, verified (61 tests). CHANGELOG [0.6.1] dated. Two commits (feat + perf) on main.
+- [x] GitHub release v0.6.1 live (tarball+asc+sha256+bottle). main + tag v0.6.1 pushed. Homebrew formula updated to 0.6.1 + pushed (tarball sha d0e029a1..., bottle sha 8080203560...).
+- [ ] crates.io publish BLOCKED on expired token. Fix: `cargo login <new-token>` (from https://crates.io/settings/tokens), then `cargo publish` (tree clean, 0.6.1 committed). No other release step depends on it.
