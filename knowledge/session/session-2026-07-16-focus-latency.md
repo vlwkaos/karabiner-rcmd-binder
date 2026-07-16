@@ -33,7 +33,12 @@ A single-app keypress runs, via Karabiner `shell_command`: `cycle-window.sh <bun
 - Tried timing single-shot System Events frontmost -> ~80-140ms -> assumed per-poll cost was 80ms -> WRONG. In-loop measurement (50x) showed ~1ms/call; the cost is cold-start + Apple Events warmup, not the query. Lesson: measure in-loop before attributing per-iteration cost.
 - Considered true NSNotificationCenter didActivateApplication observer -> rejected: JXA run-loop + block observers are fragile and can hang on a per-keypress hot path -> used fast in-process NSWorkspace poll instead (effectively event-speed, robust).
 
+### B (merge) — implemented
+Cycling + centering now runs in ONE osascript. `cycle-window.sh` takes an optional 2nd arg `center_mode` and, after focus/cycle, centers the cursor itself (imports CoreGraphics). Generator: the `allow_window_cycle && cycle_windows` branch emits `cycle-window.sh <id> [mode]` and NO longer chains `center-mouse.sh`. The non-cycling path (`open -b`) still chains `center-mouse.sh` (open is native, so only one osascript there anyway). Saves ~50-80ms (one JXA start) on the cycle+center path — which is most bindings now that cycling defaults on.
+- Cycle-branch centering targets the held `next` window reference (post-AXRaise), avoiding a windows[0] re-query race. Launch-branch waits for frontmost then centers on windows[0].
+- Cost: centering JS is duplicated across cycle-window.sh and center-mouse.sh (two separate osascript heredocs — can't share). Accepted.
+- Test contract change: `test_multi_monitor_only_with_cycle_window_base` now asserts single cycle-window.sh + mode arg, NO center-mouse.sh, NO ` && `.
+
 ## pending
-- [x] A (NSWorkspace frontmost) + C (fast in-process center-mouse poll) implemented, verified, CHANGELOG [Unreleased] Performance entry added.
-- [ ] B (merge cycle-window + center-mouse into ONE osascript to pay cold start once, ~100ms+ win) — offered, user has not decided.
-- [ ] Nothing committed yet. Working tree also carries the window-cycle-default change. A `/release patch` (0.6.0 -> 0.6.1, flow=rust via scripts/release.sh) was requested then interrupted; not executed.
+- [x] A + C + B implemented, verified (61 tests), CHANGELOG [Unreleased] Performance entry covers all three.
+- [ ] Committing all changes + running `/release patch` (0.6.0 -> 0.6.1, flow=rust via scripts/release.sh: Apple codesign + GPG-signed tarball + GitHub release + Homebrew tap). In progress.
