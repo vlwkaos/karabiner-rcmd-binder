@@ -2,7 +2,22 @@
 
 ## Version History
 
-### v0.2.1 - Bundle ID Support & Code Quality (Current)
+### v0.6.2 - Native Window Cycling (in progress)
+- [x] Window cycling moved from osascript/System Events to native `rcmdb cycle-window` on the Accessibility C API
+- [x] `cycle-window.sh` reduced to a thin PATH-resolving launcher (karabiner.json unchanged, no re-apply needed)
+- [x] `rcmdb accessibility` onboarding subcommand + first-press AX prompt (permission now on `rcmdb`, not osascript)
+- [x] /backpressure quality loop (good-to-go + sec + write-test-audit) — 65 tests, clippy clean
+- [x] User verified cycling live after granting Accessibility
+- [ ] Release 0.6.2 (universal + bottle + crates.io + tap); user re-grants Accessibility to new binary
+- See `knowledge/history/Window Cycling Performance.md`
+
+### v0.6.1 - Focus Latency & Window Cycle Default
+- [x] `cycle_windows` default-on for single-app configs, gated at every set/persist site (`has_bundle()`)
+- [x] osascript hot-path latency tweaks (in-process NSWorkspace frontmost, merged cycle+center) — later superseded by native rewrite
+- [x] GitHub release v0.6.1 + Homebrew tap
+- [ ] crates.io publish for 0.6.1 BLOCKED on expired token (`cargo login <new-token>` then `cargo publish`)
+
+### v0.2.1 - Bundle ID Support & Code Quality
 - [x] Replace static app list with dynamic discovery
 - [x] Scan running apps via osascript  
 - [x] Scan installed apps from /Applications, ~/Applications (optimized)

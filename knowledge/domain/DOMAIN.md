@@ -69,6 +69,19 @@ When binding has multiple actions:
 - Each press increments modulo action count
 - Wraps around: 0 -> 1 -> 2 -> 0
 
+### Window Cycling (`cycle_windows`)
+Distinct from Action Cycling: rotates through the **windows of one app**, not through
+multiple actions.
+- `cycle_windows` is only honored by the generator when an App action is a binding's
+  **sole action** AND has a **non-empty `bundle_id`**. Multi-action (`actions.len() > 1`)
+  always ignores it; a bundle-less App falls back to `open -a` and drops the flag.
+- Default is **on** for single-app configs (`ActionEditor::new()` sets `true`); set
+  `cycle_windows = false` to opt out.
+- Runtime: `keypress → cycle-window.sh (thin launcher) → rcmdb cycle-window <bundle> [mode]`.
+  First press launches/focuses via `open -b`; repeat presses raise the backmost
+  non-minimized window (round-robins all windows) via the Accessibility C API.
+  See `knowledge/coding/Native window cycling.md`.
+
 ### URL Tab Focus
 1. Script checks if browser has matching tab
 2. Match based on UrlMatchType
@@ -82,6 +95,7 @@ When binding has multiple actions:
 | rcmd | right_command modifier key |
 | rcmdb | Project namespace prefix in Karabiner rules |
 | cycling | Rotating through multiple actions on same key |
+| window cycling | Rotating through one app's windows on repeat presses (`cycle_windows`) |
 | tab focus | Finding and activating existing browser tab |
 
 ## Business Rules
@@ -95,3 +109,5 @@ When binding has multiple actions:
 7. Bundle IDs auto-resolved on save if missing
 8. Key validation: must be valid Karabiner keycode or use autocomplete
 9. App discovery limited to 150 apps for performance
+10. `cycle_windows` only honored for a sole App action with a non-empty `bundle_id`; default on for single-app configs
+11. Window cycling requires Accessibility (TCC) granted to the `rcmdb` binary; Center Mouse (non-cycling) still uses osascript's grant — see `knowledge/domain/Accessibility permission model.md`

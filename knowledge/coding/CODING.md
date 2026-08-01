@@ -73,6 +73,21 @@ if let Ok(result) = rx.try_recv() {
 }
 ```
 
+### Flag Gated on Prerequisite
+A flag the generator only honors under a prerequisite must be gated at **every**
+set/persist site — the `new()` default, the input handler, AND `to_action()` — not
+just the input handler. Otherwise a state the generator silently drops can be
+serialized. Example: `cycle_windows` is only honored when an App is a binding's sole
+action with a non-empty `bundle_id`; `to_action()` persists
+`self.has_bundle() && self.cycle_windows` so a bundle-less App can never persist a
+dropped state. Use one authoritative predicate (`has_bundle()`), not a duplicated
+`bundle_id.as_ref().map(|b|!b.is_empty()).unwrap_or(false)` at each call site.
+
+**Trials & Solutions (window-cycle-default, 2026-07-16):**
+- Tried flipping only `new()` default → good-to-go project axis flagged a regression: a freeform app with no autocomplete match (bundle_id None) would serialize `cycle_windows = true`, a state the generator drops → added the `has_bundle()` gate in `to_action()`.
+- `cargo build` wrapper prints "0 crates compiled" even after edits (custom wrapper), but `cargo test` recompiles and is the reliable signal.
+- 8 clippy warnings exist but all in pre-existing untouched files (app_discovery.rs, keycodes.rs, validation.rs); none in changed files — out of scope.
+
 ## Architecture
 
 ### Event Loop
@@ -130,6 +145,18 @@ if let Ok(result) = rx.try_recv() {
 ### UI Rendering
 - 50ms poll = 20 FPS max
 - No expensive operations in render path
+
+### Window Cycling (keypress hot path)
+- Current: native `rcmdb cycle-window` subcommand on the Accessibility C API —
+  starts in a few ms, no interpreter start, no System Events middleman, sets
+  `QOS_CLASS_USER_INTERACTIVE`. See `knowledge/coding/Native window cycling.md`.
+- SUPERSEDES the earlier osascript/JXA + System Events approach (cold start ~100ms+,
+  Apple Events queue backed up under load → cycling could get stuck). `cycle-window.sh`
+  is now only a thin PATH-resolving launcher. History in
+  `knowledge/history/Window Cycling Performance.md`.
+- Accessibility (TCC) now attaches to the `rcmdb` binary, not osascript; a CLI invoked
+  from a script gets no automatic prompt and untrusted AX calls fail silently — see
+  `knowledge/domain/Accessibility permission model.md`.
 
 ## Code Quality
 

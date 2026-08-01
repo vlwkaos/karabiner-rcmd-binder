@@ -40,6 +40,7 @@ src/
 ├── app_discovery.rs  # Dynamic app scanning with bundle IDs
 ├── keycodes.rs       # Valid Karabiner key codes
 ├── validation.rs     # Bundle ID resolution and validation
+├── window.rs         # Native `rcmdb cycle-window`: AX C API window cycling + centering
 ├── config/
 │   ├── model.rs      # Domain: Browser, Action, Binding, Config
 │   └── persistence.rs # TOML load/save
@@ -47,7 +48,7 @@ src/
 │   ├── generator.rs  # JSON rule generation, cycling logic
 │   └── backup.rs     # Timestamped backup rotation
 ├── scripts/          # Embedded shell scripts
-│   └── mod.rs        # url-focus.sh for browser tab detection
+│   └── mod.rs        # url-focus.sh (tab detection), cycle-window.sh (thin launcher → rcmdb cycle-window)
 └── ui/
     ├── mod.rs        # Main draw dispatcher
     ├── layout.rs     # Tabs, status bar, mode indicators
@@ -74,3 +75,6 @@ Main Thread                    Discovery Thread
 - @knowledge/bigpicture/PLAN.md - Feature plan & progress
 - @knowledge/domain/DOMAIN.md - Data models & workflows
 - @knowledge/coding/CODING.md - Patterns & conventions
+- @knowledge/coding/Native window cycling.md - rcmdb cycle-window AX implementation
+- @knowledge/domain/Accessibility permission model.md - TCC grant: rcmdb vs osascript
+- @knowledge/history/Window Cycling Performance.md - osascript → native timeline
