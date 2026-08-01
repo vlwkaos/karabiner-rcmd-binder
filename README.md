@@ -164,7 +164,7 @@ rcmd+t → Terminal → iTerm → Warp → (cycles)
 ```
 rcmd+c → Cursor focuses (first press) → next Cursor window → next → (wraps)
 ```
-Only applies when the binding has exactly one App action with a bundle ID. Requires the same Accessibility permission as Center Mouse.
+Only applies when the binding has exactly one App action with a bundle ID. Window cycling runs natively in the `rcmdb` binary (invoked per press as `rcmdb cycle-window`) and raises windows via the macOS Accessibility API, so **`rcmdb` itself must be granted Accessibility** (System Settings → Privacy & Security → Accessibility). On the first cycle press macOS prompts automatically; you can also grant it deliberately by running `rcmdb accessibility`, which triggers the prompt and reports whether access is granted. (This is separate from Center Mouse, which still uses `osascript`.)
 
 **Smart URL with Browser**: URL action with browser override
 ```

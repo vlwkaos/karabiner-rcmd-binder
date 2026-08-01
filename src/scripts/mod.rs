@@ -304,96 +304,14 @@ JSEOF
 /// Embedded cycle-window.sh script
 const CYCLE_WINDOW_SCRIPT: &str = r#"#!/usr/bin/env bash
 # cycle-window.sh <bundle_id> [center_mode]
-# First press (app not frontmost): launch/focus the app.
-# Repeat press (app already frontmost): raise its next window, wrapping around.
-# State is implicit in live window focus — no Karabiner variable needed.
-# center_mode (always|multi_monitor_only), when set, centers the cursor on the
-# resulting front window IN THE SAME osascript, so the cycling+center path pays a
-# single JXA interpreter start instead of chaining a second center-mouse.sh process.
-
-BUNDLE_ID="$1"
-MODE="$2"
-
-if [ -z "$BUNDLE_ID" ]; then
-    exit 1
-fi
-
-osascript -l JavaScript - "$BUNDLE_ID" "$MODE" << 'JSEOF'
-ObjC.import('CoreGraphics');
-ObjC.import('AppKit');
-
-function centerWanted(mode) {
-    if (!mode) return false;
-    if (mode === 'multi_monitor_only' && $.NSScreen.screens.count <= 1) return false;
-    return true;
-}
-
-function warpToWindow(win) {
-    try {
-        var pos = win.position();
-        var sz = win.size();
-        $.CGWarpMouseCursorPosition({ x: pos[0] + sz[0] / 2, y: pos[1] + sz[1] / 2 });
-    } catch (e) {}
-}
-
-function run(argv) {
-    var targetBundle = argv[0];
-    var mode = argv[1] || '';
-    var wantCenter = centerWanted(mode);
-    var ws = $.NSWorkspace.sharedWorkspace;
-
-    // Is the target app already frontmost? Read it in-process via NSWorkspace
-    // (~microseconds) instead of a System Events Apple-Events query (~80ms).
-    var frontBundle = null;
-    try { frontBundle = ws.frontmostApplication.bundleIdentifier.js; } catch (e) {}
-
-    if (frontBundle !== targetBundle) {
-        // First press: launch or focus the app.
-        ws.launchAppWithBundleIdentifierOptionsAdditionalEventParamDescriptorLaunchIdentifier(
-            targetBundle, $.NSWorkspaceLaunchDefault, $.NSAppleEventDescriptor.nullDescriptor, null
-        );
-        if (!wantCenter) return;
-        // Wait for the app to become frontmost (polling NSWorkspace in-process, near-free),
-        // then center on its front window. AX is only touched once, after it fronts.
-        var timeout = 0.5, interval = 0.01, elapsed = 0, isFront = false;
-        while (elapsed < timeout) {
-            var fb = null;
-            try { fb = ws.frontmostApplication.bundleIdentifier.js; } catch (e) {}
-            if (fb === targetBundle) { isFront = true; break; }
-            delay(interval);
-            elapsed += interval;
-        }
-        if (!isFront) return;
-        try {
-            var sysEvt = Application('System Events');
-            var proc = sysEvt.processes.whose({ bundleIdentifier: targetBundle })()[0];
-            if (proc) warpToWindow(proc.windows[0]);
-        } catch (e) {}
-        return;
-    }
-
-    // App is frontmost: cycle to its next window (window geometry/raise needs AX).
-    try {
-        var sysEvt = Application('System Events');
-        var proc = sysEvt.processes.whose({ bundleIdentifier: targetBundle })()[0];
-        if (!proc) return;
-        var wins = proc.windows();
-        if (!wins || wins.length === 0) return;
-        if (wins.length === 1) {
-            // Nothing to cycle; still center on the sole window if asked.
-            if (wantCenter) warpToWindow(wins[0]);
-            return;
-        }
-
-        // The frontmost window is index 0; raise the next one.
-        var next = wins[1];
-        proc.frontmost = true;
-        next.actions['AXRaise'].perform();
-        // Center on the window we just raised (we hold its reference — no re-query race).
-        if (wantCenter) warpToWindow(next);
-    } catch (e) {}
-}
-JSEOF
+# Thin launcher. The real logic lives natively in the rcmdb binary
+# (`rcmdb cycle-window`), which starts in a few ms and drives the Accessibility API
+# directly — no scripting-interpreter start, no System Events round trips. This
+# wrapper exists only so karabiner.json can reference a stable script path while the
+# binary itself is resolved via PATH, which stays valid across `brew upgrade` and
+# whichever install location is in use.
+export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+exec rcmdb cycle-window "$@"
 "#;
 
 fn write_executable(path: &std::path::Path, content: &str) -> Result<()> {
@@ -450,7 +368,10 @@ mod tests {
 
     #[test]
     fn test_scripts_no_baked_absolute_paths() {
-        // Scripts must not embed save-time user paths — use $HOME or relative refs only
+        // Scripts must not embed a save-time *user home* path (e.g. /Users/<name>); that
+        // would break when the config is moved between machines. Fixed system paths like
+        // /opt/homebrew are fine (the cycle-window launcher deliberately lists them), and
+        // $HOME expands at runtime — this guard is specifically the /Users/ literal.
         assert!(
             !URL_FOCUS_SCRIPT.contains("/Users/"),
             "url-focus.sh must not embed absolute user path"
@@ -462,6 +383,29 @@ mod tests {
         assert!(
             !CYCLE_WINDOW_SCRIPT.contains("/Users/"),
             "cycle-window.sh must not embed absolute user path"
+        );
+    }
+
+    #[test]
+    fn test_cycle_window_is_thin_launcher_to_native_binary() {
+        // The launcher's whole purpose is to hand a keypress off to the native
+        // `rcmdb cycle-window`; none of the shebang/path guards above would catch this
+        // line being deleted or renamed, so assert it directly.
+        assert!(
+            CYCLE_WINDOW_SCRIPT.contains(r#"exec rcmdb cycle-window "$@""#),
+            "cycle-window.sh must exec `rcmdb cycle-window \"$@\"`"
+        );
+        // rcmdb is resolved via PATH (stable across brew upgrades / install locations),
+        // so the PATH export must be present or the launcher can't find the binary.
+        assert!(
+            CYCLE_WINDOW_SCRIPT.contains("export PATH="),
+            "cycle-window.sh must export a PATH that can resolve rcmdb"
+        );
+        // It must stay thin — a regression that regrows the old embedded osascript body
+        // would defeat the entire native rewrite.
+        assert!(
+            !CYCLE_WINDOW_SCRIPT.contains("osascript"),
+            "cycle-window.sh must not reintroduce the osascript implementation"
         );
     }
 }

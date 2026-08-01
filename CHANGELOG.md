@@ -1,3 +1,15 @@
+## [Unreleased]
+
+### Changed
+
+- **Window cycling is now native, not osascript.** Each cycle press previously ran `cycle-window.sh`, which started a JXA (`osascript`) interpreter and drove window enumeration/raising through the shared System Events process over Apple Events. Both degrade badly when the machine is under load — the interpreter cold start alone is ~100ms+, and the System Events queue backs up — which is why cycling could get stuck or feel unresponsive. The logic now lives in the `rcmdb` binary itself, invoked per press as `rcmdb cycle-window <bundle_id> [center_mode]`: it starts in a few ms and talks to the target app's Accessibility server directly via the AX C API, with no interpreter start and no System Events middleman. It also asks the scheduler to treat the press as user-interactive QoS, so it stays responsive under contention. It remains strictly per-press (starts, acts, exits — no resident daemon).
+  - The installed `cycle-window.sh` is now a thin launcher that just `exec`s `rcmdb cycle-window`, resolved via `PATH` so it survives `brew upgrade` and any install location. `karabiner.json` is unchanged, so no re-apply is required after upgrading.
+  - **Accessibility permission**: cycling now needs Accessibility granted to **`rcmdb`** (previously `osascript`). The binary now explicitly prompts on first use (a CLI tool invoked from a script gets no automatic prompt otherwise), and a new `rcmdb accessibility` command triggers the prompt and reports trust status so it can be granted deliberately from a terminal. Approve `rcmdb` under System Settings → Privacy & Security → Accessibility.
+
+### Fixed
+
+- Window cycling no longer gets stuck toggling between the front two windows. Repeated presses now round-robin through all of an app's windows (by raising the backmost window each press) and skip Dock-minimized windows so a press never lands on one and appears stuck. (Behaviour preserved from the previous fix, now implemented natively per the change above.)
+
 ## [0.6.1] - 2026-07-16
 
 ### Changed

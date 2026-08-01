@@ -6,6 +6,7 @@ mod keycodes;
 mod scripts;
 mod ui;
 mod validation;
+mod window;
 
 use anyhow::Result;
 use crossterm::{
@@ -25,6 +26,39 @@ use karabiner::apply_to_karabiner;
 use scripts::install_scripts;
 
 fn main() -> Result<()> {
+    // Non-TUI subcommand: `rcmdb cycle-window <bundle_id> [center_mode]` is invoked by
+    // Karabiner on a keypress to focus/launch an app or raise its next window. It must
+    // run and exit WITHOUT touching the terminal (no alt-screen, no raw mode).
+    let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(String::as_str) == Some("cycle-window") {
+        let bundle_id = args.get(2).map(String::as_str).unwrap_or("");
+        if bundle_id.is_empty() {
+            std::process::exit(1);
+        }
+        window::cycle_window(bundle_id, args.get(3).map(String::as_str));
+        return Ok(());
+    }
+
+    // `rcmdb accessibility`: trigger the Accessibility prompt and report trust status.
+    // Window cycling raises windows via the Accessibility API, which requires this
+    // binary to be trusted. Run it once (e.g. from a terminal) to grant access.
+    if args.get(1).map(String::as_str) == Some("accessibility") {
+        if window::prompt_accessibility_if_needed() {
+            println!("Accessibility: granted — window cycling can raise windows.");
+        } else {
+            println!(
+                "Accessibility: NOT granted.\n\
+                 A dialog should have opened; approve \"rcmdb\" under\n\
+                 System Settings > Privacy & Security > Accessibility.\n\
+                 If no dialog appeared, add it manually with the + button:\n  {}",
+                std::env::current_exe()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|_| "/opt/homebrew/bin/rcmdb".to_string())
+            );
+        }
+        return Ok(());
+    }
+
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();

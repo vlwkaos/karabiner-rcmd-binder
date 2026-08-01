@@ -22,3 +22,11 @@ dirs = "5"
 anyhow = "1"
 glob = "0.3"
 chrono = "0.4"
+
+# Native window cycling (macOS only). `rcmdb cycle-window` reads the frontmost app
+# via NSWorkspace and drives the Accessibility C API directly, replacing the former
+# osascript/System Events helper. Pinned to the versions vendored in the local cargo
+# cache so the build stays reproducible offline.
+objc2 = "=0.6.4"
+objc2-foundation = "=0.3.2"
+objc2-app-kit = "=0.3.2"
